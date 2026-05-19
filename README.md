@@ -18,6 +18,14 @@ A **Pet Family API** centraliza e persiste todos os dados de saúde dos pets em 
 - Criar lembretes preventivos (vacinação, vermifugação, retornos)
 - Interagir com um assistente de IA simulado para orientações de saúde animal
 - Monitorar métricas clínicas via dashboard
+- A Pet Family API centraliza e gerencia todas as informações relacionadas à saúde e ao bem-estar dos pets em um backend robusto, moderno e organizado, permitindo:
+Cadastrar tutores e seus pets com dados clínicos completos;
+Registrar e acompanhar o histórico de consultas veterinárias;
+Criar lembretes preventivos, como vacinação, vermifugação, exames e retornos;
+Interagir com um assistente de IA simulado para orientações básicas sobre saúde animal;
+Monitorar métricas clínicas e informações importantes por meio de um dashboard.
+Além disso, a solução busca facilitar o acompanhamento da saúde dos animais, melhorar a comunicação entre tutores e clínicas veterinárias e incentivar cuidados preventivos de forma prática, eficiente e acessível.
+A aplicação foi desenvolvida utilizando Java e Spring Boot, seguindo os princípios da Programação Orientada a Objetos (POO), arquitetura RESTful e boas práticas de desenvolvimento, garantindo organização, escalabilidade e facilidade de manutenção.
 
 ---
 
