@@ -21,7 +21,6 @@ A Pet Family API centraliza e gerencia todas as informações relacionadas à sa
 - Dashboard clínico com KPIs em tempo real (acesso do veterinário)
 - Versionamento de banco de dados com **Flyway**
 
-O app cliente é o **Pet Family Mobile** (Expo/React Native) — ver [`PET-FAMILY-MOBILE-main/README.md`](./PET-FAMILY-MOBILE-main/PET-FAMILY-MOBILE-main/README.md).
 
 ---
 
