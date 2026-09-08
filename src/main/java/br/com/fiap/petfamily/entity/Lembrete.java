@@ -40,6 +40,24 @@ public class Lembrete {
     @JoinColumn(name = "pet_id", nullable = false)
     private Pet pet;
 
+    @Column(name = "recorrencia_dias")
+    private Integer recorrenciaDias;
+
+    @Column(name = "data_conclusao")
+    private LocalDate dataConclusao;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "criado_por_usuario_id")
+    private Usuario criadoPor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "concluido_por_usuario_id")
+    private Usuario concluidoPor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "origem_lembrete_id")
+    private Lembrete origemLembrete;
+
     public enum StatusLembrete {
         PENDENTE, CONCLUIDO, CANCELADO
     }

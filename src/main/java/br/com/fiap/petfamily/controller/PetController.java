@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,11 +26,11 @@ public class PetController {
     private final PetService petService;
 
     @PostMapping
-    @Operation(summary = "Cadastrar novo pet associado a um tutor")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Tutor cadastra um novo pet próprio")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Pet cadastrado com sucesso"),
-        @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-        @ApiResponse(responseCode = "404", description = "Tutor não encontrado")
+        @ApiResponse(responseCode = "400", description = "Dados inválidos")
     })
     public ResponseEntity<PetResponse> criar(@Valid @RequestBody PetRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(petService.criar(request));

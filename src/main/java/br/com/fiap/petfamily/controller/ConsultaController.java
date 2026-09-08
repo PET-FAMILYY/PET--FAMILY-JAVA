@@ -1,6 +1,7 @@
 package br.com.fiap.petfamily.controller;
 
-import br.com.fiap.petfamily.dto.request.ConsultaRequest;
+import br.com.fiap.petfamily.dto.request.AgendarConsultaRequest;
+import br.com.fiap.petfamily.dto.request.RealizarConsultaRequest;
 import br.com.fiap.petfamily.dto.response.ConsultaResponse;
 import br.com.fiap.petfamily.entity.Consulta.StatusConsulta;
 import br.com.fiap.petfamily.service.ConsultaService;
@@ -14,25 +15,42 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/consultas")
 @RequiredArgsConstructor
-@Tag(name = "Consultas", description = "Registro e acompanhamento de consultas veterinárias")
+@Tag(name = "Consultas", description = "Agendamento e atendimento de consultas veterinárias")
 public class ConsultaController {
 
     private final ConsultaService consultaService;
 
-    @PostMapping
-    @Operation(summary = "Registrar nova consulta veterinária")
-    @ApiResponse(responseCode = "201", description = "Consulta registrada com sucesso")
-    public ResponseEntity<ConsultaResponse> criar(@Valid @RequestBody ConsultaRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(consultaService.criar(request));
+    @PostMapping("/agendar")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Tutor agenda uma consulta para um pet próprio, em horário livre e futuro")
+    @ApiResponse(responseCode = "201", description = "Consulta agendada")
+    public ResponseEntity<ConsultaResponse> agendar(@Valid @RequestBody AgendarConsultaRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(consultaService.agendar(request));
+    }
+
+    @PostMapping("/{id}/cancelar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cancela uma consulta AGENDADA (tutor dono ou veterinário)")
+    public ResponseEntity<ConsultaResponse> cancelar(@PathVariable Long id) {
+        return ResponseEntity.ok(consultaService.cancelar(id));
+    }
+
+    @PostMapping("/{id}/realizar")
+    @PreAuthorize("hasRole('VETERINARIO')")
+    @Operation(summary = "Veterinário registra o atendimento; consulta passa a REALIZADA")
+    public ResponseEntity<ConsultaResponse> realizar(@PathVariable Long id,
+                                                       @Valid @RequestBody RealizarConsultaRequest request) {
+        return ResponseEntity.ok(consultaService.realizar(id, request));
     }
 
     @GetMapping
-    @Operation(summary = "Listar consultas com filtro por status")
+    @Operation(summary = "Listar consultas (tutor vê só as próprias; veterinário vê todas)")
     public ResponseEntity<Page<ConsultaResponse>> listar(
             @RequestParam(required = false) StatusConsulta status,
             @PageableDefault(size = 10, sort = "data") Pageable pageable) {
@@ -46,25 +64,10 @@ public class ConsultaController {
     }
 
     @GetMapping("/futuras")
-    @Operation(summary = "Listar consultas agendadas a partir de hoje")
+    @PreAuthorize("hasRole('VETERINARIO')")
+    @Operation(summary = "Listar consultas agendadas a partir de hoje (visão clínica)")
     public ResponseEntity<Page<ConsultaResponse>> listarFuturas(
             @PageableDefault(size = 10, sort = "data") Pageable pageable) {
         return ResponseEntity.ok(consultaService.listarFuturas(pageable));
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "Atualizar consulta existente")
-    public ResponseEntity<ConsultaResponse> atualizar(
-            @PathVariable Long id,
-            @Valid @RequestBody ConsultaRequest request) {
-        return ResponseEntity.ok(consultaService.atualizar(id, request));
-    }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Remover consulta")
-    @ApiResponse(responseCode = "204", description = "Consulta removida com sucesso")
-    public ResponseEntity<Void> deletar(@PathVariable Long id) {
-        consultaService.deletar(id);
-        return ResponseEntity.noContent().build();
     }
 }

@@ -18,5 +18,6 @@ public class ConsultaResponse {
     private String observacoes;
     private Long petId;
     private String petNome;
+    private Long tutorId;
     private String tutorNome;
 }

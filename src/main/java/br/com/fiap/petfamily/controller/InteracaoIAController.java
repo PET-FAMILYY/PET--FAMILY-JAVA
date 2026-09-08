@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,27 +27,31 @@ public class InteracaoIAController {
     private final InteracaoIAService interacaoIAService;
 
     @PostMapping
-    @Operation(summary = "Enviar pergunta ao assistente de IA e obter resposta simulada")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Enviar pergunta ao assistente de IA (sobre um pet próprio) e obter resposta simulada")
     @ApiResponse(responseCode = "201", description = "Interação registrada com resposta gerada")
     public ResponseEntity<InteracaoIAResponse> criar(@Valid @RequestBody InteracaoIARequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(interacaoIAService.criar(request));
     }
 
     @GetMapping
-    @Operation(summary = "Listar todas as interações com paginação")
+    @PreAuthorize("hasRole('VETERINARIO')")
+    @Operation(summary = "Listar todas as interações com paginação (visão clínica)")
     public ResponseEntity<Page<InteracaoIAResponse>> listar(
             @PageableDefault(size = 10, sort = "dataHora") Pageable pageable) {
         return ResponseEntity.ok(interacaoIAService.listar(pageable));
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar interação por ID")
+    @PreAuthorize("hasRole('VETERINARIO')")
+    @Operation(summary = "Buscar interação por ID (visão clínica)")
     public ResponseEntity<InteracaoIAResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(interacaoIAService.buscarPorId(id));
     }
 
     @GetMapping("/pet/{petId}")
-    @Operation(summary = "Listar histórico de interações de um pet (mais recentes primeiro)")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Histórico de interações de um pet próprio (mais recentes primeiro)")
     public ResponseEntity<List<InteracaoIAResponse>> listarPorPet(@PathVariable Long petId) {
         return ResponseEntity.ok(interacaoIAService.listarPorPet(petId));
     }

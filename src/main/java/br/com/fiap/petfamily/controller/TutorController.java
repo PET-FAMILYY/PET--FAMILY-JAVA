@@ -12,30 +12,21 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/tutores")
 @RequiredArgsConstructor
-@Tag(name = "Tutores", description = "Gerenciamento de tutores de pets")
+@Tag(name = "Tutores", description = "Gerenciamento do cadastro de tutores")
 public class TutorController {
 
     private final TutorService tutorService;
 
-    @PostMapping
-    @Operation(summary = "Cadastrar novo tutor")
-    @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Tutor cadastrado com sucesso"),
-        @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    })
-    public ResponseEntity<TutorResponse> criar(@Valid @RequestBody TutorRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(tutorService.criar(request));
-    }
-
     @GetMapping
-    @Operation(summary = "Listar tutores com paginação e filtro por nome")
+    @PreAuthorize("hasRole('VETERINARIO')")
+    @Operation(summary = "Listar tutores com paginação e filtro por nome (acesso clínico)")
     public ResponseEntity<Page<TutorResponse>> listar(
             @RequestParam(required = false) String nome,
             @PageableDefault(size = 10, sort = "nome") Pageable pageable) {
@@ -43,7 +34,7 @@ public class TutorController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar tutor por ID")
+    @Operation(summary = "Buscar tutor por ID (o próprio tutor, ou veterinário)")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Tutor encontrado"),
         @ApiResponse(responseCode = "404", description = "Tutor não encontrado")
@@ -53,7 +44,8 @@ public class TutorController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar dados do tutor")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Tutor atualiza o próprio cadastro")
     public ResponseEntity<TutorResponse> atualizar(
             @PathVariable Long id,
             @Valid @RequestBody TutorRequest request) {
@@ -61,8 +53,9 @@ public class TutorController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remover tutor e seus pets")
-    @ApiResponse(responseCode = "204", description = "Tutor removido com sucesso")
+    @PreAuthorize("hasRole('TUTOR')")
+    @Operation(summary = "Tutor exclui a própria conta (remove pets, consultas e cuidados associados)")
+    @ApiResponse(responseCode = "204", description = "Conta removida com sucesso")
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         tutorService.deletar(id);
         return ResponseEntity.noContent().build();

@@ -17,4 +17,9 @@ public class LembreteResponse {
     private StatusLembrete status;
     private Long petId;
     private String petNome;
+    private Integer recorrenciaDias;
+    private LocalDate dataConclusao;
+    private String criadoPorNome;
+    private String concluidoPorNome;
+    private boolean atrasado;
 }
