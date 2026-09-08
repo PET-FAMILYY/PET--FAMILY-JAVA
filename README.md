@@ -227,21 +227,6 @@ Inclui testes de contexto (Flyway + Security) e testes de integração de ponta 
 
 ---
 
-## Acessos
-
-| Recurso | URL |
-|---|---|
-| API Base | http://localhost:9090 |
-| Swagger UI | http://localhost:9090/swagger-ui/index.html |
-| OpenAPI JSON | http://localhost:9090/api-docs |
-| H2 Console | http://localhost:9090/h2-console |
-
-**H2 Console — Configurações (perfil dev, arquivo local):**
-- JDBC URL: `jdbc:h2:file:./data/petfamily`
-- Username: `sa`
-- Password: *(vazio)*
-
----
 
 ## Contas de demonstração (perfil `dev`)
 
@@ -301,46 +286,6 @@ Inclui testes de contexto (Flyway + Security) e testes de integração de ponta 
 
 ---
 
-## Roteiro de apresentação (alternando Tutor e Veterinário)
-
-1. **Login como tutor** (`pedro@petfamily.com` / `senha123`) → tela Home mostra os pets, cuidados pendentes e próximas consultas.
-2. Aba **Meus Pets** → cadastrar um novo pet (multi-pet por tutor).
-3. Aba **Consulta** → agendar uma consulta futura para esse pet. Tentar agendar outra no mesmo horário mostra o erro de conflito.
-4. Aba **Cuidados** → mostra os cuidados definidos pela clínica (ainda vazio para o pet novo).
-5. **Logout** → login como veterinário (`veterinario@petfamily.com` / `senha123`).
-6. Aba **Atendimentos** → localizar a consulta recém-agendada e clicar em "Realizar", preenchendo as observações do atendimento.
-7. Aba **Cuidados** (veterinário) → criar um cuidado preventivo recorrente para o pet do tutor (ex.: a cada 90 dias).
-8. Aba **Indicadores** → mostrar o dashboard clínico atualizado.
-9. **Logout** → login novamente como o tutor.
-10. Aba **Cuidados** → o novo cuidado aparece pendente; concluir → a próxima ocorrência é criada automaticamente na agenda.
-11. Aba **Consulta** → a consulta agendada anteriormente agora aparece como Realizada.
-12. Aba **Chat IA** → perguntar algo sobre o pet (ex.: "quais vacinas ele precisa?") e mostrar a resposta simulada, com histórico persistido.
-
----
-
-## Testes executados
-
-- `mvn test` — 8 testes, 0 falhas: contexto Spring (Flyway + Security) e o fluxo completo via `MockMvc`:
-  - Login com senha errada → 401; rota protegida sem token → 401.
-  - Isolamento entre dois tutores (um não acessa pet do outro) → 403.
-  - Agendamento no passado → 400; agendamento duplicado no mesmo horário → 409.
-  - Atendimento (realizar) e transições inválidas (realizar/cancelar consulta já finalizada) → 409.
-  - Cuidado só pode ser criado por veterinário; tutor de outro pet não pode concluir → 403.
-  - Conclusão de cuidado, bloqueio de dupla conclusão (409) e criação automática da próxima ocorrência recorrente.
-- Testado manualmente via `curl` contra a aplicação rodando (login, `/auth/me`, isolamento de pets, agendar/conflito/passado/realizar/duplicar, cancelar+reagendar no mesmo horário, criar cuidado/concluir/recorrência/duplicar, `/dashboard/resumo` restrito a veterinário, 401/403/404/405 consistentes).
-- Auditoria adicional (rodando a aplicação, não só lendo código): exclusão da própria conta do tutor cascateia corretamente até `Usuario` e `Pet` (login com a conta excluída passa a falhar); veterinário não consegue criar pet (403); veterinário consegue cancelar consulta de um tutor (200); pet inexistente retorna 404 (não 500); tutor não consegue editar pet de outro tutor (403).
-- Migrations e persistência: reiniciar a aplicação com o mesmo arquivo H2 mantém os dados e o Flyway relata "Schema is up to date" (sem recriar nada).
-- Mobile: **type-check** (`npx tsc --noEmit`) passando sem erros, inclusive após os refactors de DRY. A execução em dispositivo/emulador real não pôde ser feita neste ambiente (sem display/dispositivo disponível) — ver roteiro manual no README do mobile. O bundling via Metro (`npx expo export`) também não pôde ser validado por uma incompatibilidade de ferramental do ambiente (Node 22), então **não há confirmação visual de que as telas renderizam sem erro em runtime** — esse é o maior ponto de incerteza desta entrega.
-
-### Revisão de qualidade (SOLID/DRY) feita após a auditoria inicial
-
-- `DataInitializer.loadData()` era um único método de ~250 linhas fazendo tudo — quebrado em 6 métodos privados, cada um com uma responsabilidade.
-- A checagem "veterinário sempre passa; tutor só passa se for o dono" estava duplicada, com o mesmo `if`, em `PetService`, `TutorService`, `ConsultaService` e `LembreteService` (6 ocorrências) — centralizada em `SecurityUtils.exigirTutorDono(...)`.
-- No mobile, a validação de formato de data/horário (`isDataValida`/`isHorarioValido`) estava duplicada entre `appointment.tsx` e `vet-cuidados.tsx` — extraída para `src/utils/validators.ts`.
-- Essa não foi uma varredura linha-a-linha de 100% dos arquivos — foram corrigidas as duplicações/métodos grandes mais evidentes encontrados numa auditoria direcionada.
-
----
-
 ## Correspondência requisitos × implementação
 
 | Requisito | Onde |
@@ -352,11 +297,11 @@ Inclui testes de contexto (Flyway + Security) e testes de integração de ponta 
 
 ---
 
-## Changelog técnico — o que mudou no backend Java (entrega 3)
+## Changelog técnico — o que mudamos no backend Java (entrega 03)
 
-Lista objetiva de toda alteração no código Java, para facilitar a correção comparando com as entregas 1–2.
+Lista objetiva de toda alteração no código Java, para facilitar a correção.
 
-### Arquivos novos
+
 
 **Segurança** (`src/main/java/.../security/`)
 - `JwtService.java` — gera/valida token JWT (HMAC-SHA256)
@@ -416,15 +361,6 @@ Lista objetiva de toda alteração no código Java, para facilitar a correção 
 
 ### Arquivo removido
 - `ConsultaRequest.java` (DTO genérico do CRUD antigo — virou dead code depois do `ConsultaController` ser reescrito para as operações de negócio)
-
-### Bugs reais encontrados corrigindo em runtime (não só lendo código)
-
-- H2 `AUTO_SERVER=TRUE` + `DB_CLOSE_ON_EXIT=FALSE` incompatíveis entre si — a aplicação não subia.
-- `LazyInitializationException` em vários endpoints de listagem por falta de `@Transactional` nos métodos de leitura dos services.
-- Resposta de `realizar`/`concluir` retornando dado obsoleto — um `UPDATE` em massa (`@Modifying`) não atualiza o contexto de persistência do Hibernate; corrigido com `clearAutomatically=true`.
-- `/auth/me` retornando 500 em vez de 401 sem token — estava (erroneamente) na lista de rotas públicas do filtro JWT.
-- Método HTTP não suportado retornando 500 em vez de 405 — faltava handler específico no `GlobalExceptionHandler`.
-
 ---
 
 ## Integrantes
@@ -433,6 +369,8 @@ Lista objetiva de toda alteração no código Java, para facilitar a correção 
 |---|---|
 | Pedro Vaz Ferreira | 566551 |
 | João Victor Luiz Oliveira Resende | 565139 |
+| Vitor Dias dos Santos |  RM565422 |
+| Felipe Kirschner Modesto | RM561810 |
 
 ---
 
