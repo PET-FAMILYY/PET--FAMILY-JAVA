@@ -3,6 +3,9 @@
 > Backend RESTful para acompanhamento contínuo da saúde dos pets
 > **Challenge CLYVO VET 2026 — FIAP | Java Advanced — Entrega 3**
 
+🎥 **Vídeo de apresentação:** [https://youtu.be/YUA4fIXr-tg](https://youtu.be/YUA4fIXr-tg)
+📱 **Repositório do app mobile:** [https://github.com/PET-FAMILYY/PET-FAMILY-MOBILE](https://github.com/PET-FAMILYY/PET-FAMILY-MOBILE)
+
 ---
 
 ## Problema
@@ -289,7 +292,7 @@ Inclui testes de contexto (Flyway + Security) e testes de integração de ponta 
 
 | Requisito | Onde |
 |---|---|
-| Frontend funcional (30 pts) | App Expo integrado à API (ver README do mobile) |
+| Frontend funcional (30 pts) | App Expo integrado à API ([repositório mobile](https://github.com/PET-FAMILYY/PET-FAMILY-MOBILE)) |
 | Flyway (20 pts) | `src/main/resources/db/migration/V1__*.sql`, `V2__*.sql`; `ddl-auto=validate` |
 | Spring Security, 2 perfis, rotas protegidas (30 pts) | `security/*`, `@PreAuthorize` nos controllers + checagem de posse nos services |
 | Funcionalidades além de CRUD (20 pts) | Agendamento/atendimento de consultas; cuidado preventivo com recorrência |
