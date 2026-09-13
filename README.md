@@ -4,6 +4,10 @@
 > **Challenge CLYVO VET 2026 — FIAP | Java Advanced — Entrega 3**
 
 🎥 **Vídeo de apresentação:** [https://youtu.be/YUA4fIXr-tg](https://youtu.be/YUA4fIXr-tg)
+
+---
+
+
 📱 **Repositório do app mobile:** [https://github.com/PET-FAMILYY/PET-FAMILY-MOBILE](https://github.com/PET-FAMILYY/PET-FAMILY-MOBILE)
 
 ---
@@ -38,7 +42,6 @@ A Pet Family API centraliza e gerencia todas as informações relacionadas à sa
 | **Flyway** | (gerenciado pelo Spring Boot 3.2.5) |
 | Spring Cache + Caffeine | — |
 | Bean Validation | — |
-| H2 Database (arquivo local) | — |
 | Lombok | — |
 | SpringDoc OpenAPI / Swagger | 2.3.0 |
 | Maven | — |
