@@ -27,16 +27,18 @@ public interface LembreteRepository extends JpaRepository<Lembrete, Long> {
 
     long countByStatus(StatusLembrete status);
 
+    long countByPetIdAndStatus(Long petId, StatusLembrete status);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Lembrete l SET l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.CONCLUIDO, " +
-           "l.dataConclusao = :dataConclusao, l.concluidoPor = :usuario " +
-           "WHERE l.id = :id AND l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.PENDENTE")
+            "l.dataConclusao = :dataConclusao, l.concluidoPor = :usuario " +
+            "WHERE l.id = :id AND l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.PENDENTE")
     int concluirSeAindaPendente(@Param("id") Long id,
-                                 @Param("dataConclusao") LocalDate dataConclusao,
-                                 @Param("usuario") Usuario usuario);
+                                @Param("dataConclusao") LocalDate dataConclusao,
+                                @Param("usuario") Usuario usuario);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Lembrete l SET l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.CANCELADO " +
-           "WHERE l.id = :id AND l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.PENDENTE")
+            "WHERE l.id = :id AND l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.PENDENTE")
     int cancelarSeAindaPendente(@Param("id") Long id);
 }

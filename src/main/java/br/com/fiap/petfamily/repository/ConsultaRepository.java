@@ -2,6 +2,7 @@ package br.com.fiap.petfamily.repository;
 
 import br.com.fiap.petfamily.entity.Consulta;
 import br.com.fiap.petfamily.entity.Consulta.StatusConsulta;
+import br.com.fiap.petfamily.entity.Usuario;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
 
@@ -19,18 +21,25 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
 
     Page<Consulta> findByPetTutorIdAndStatus(Long tutorId, StatusConsulta status, Pageable pageable);
 
-    @Query("SELECT c FROM Consulta c WHERE c.data >= :hoje ORDER BY c.data ASC, c.horario ASC")
-    Page<Consulta> findConsultasFuturas(@Param("hoje") LocalDate hoje, Pageable pageable);
+    // Agenda clínica: apenas AGENDADAS de hoje em diante (antes trazia também
+    // REALIZADAS e CANCELADAS). A ordenação vem do Pageable (data, horario).
+    Page<Consulta> findByStatusAndDataGreaterThanEqual(StatusConsulta status, LocalDate data, Pageable pageable);
+
+    long countByPetId(Long petId);
 
     long countByStatus(StatusConsulta status);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Consulta c SET c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.REALIZADA, " +
-           "c.observacoes = :observacoes WHERE c.id = :id AND c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.AGENDADA")
-    int realizarSeAgendada(@Param("id") Long id, @Param("observacoes") String observacoes);
+            "c.observacoes = :observacoes, c.realizadaEm = :realizadaEm, c.realizadaPor = :usuario " +
+            "WHERE c.id = :id AND c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.AGENDADA")
+    int realizarSeAgendada(@Param("id") Long id,
+                           @Param("observacoes") String observacoes,
+                           @Param("realizadaEm") LocalDateTime realizadaEm,
+                           @Param("usuario") Usuario usuario);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Consulta c SET c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.CANCELADA " +
-           "WHERE c.id = :id AND c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.AGENDADA")
+            "WHERE c.id = :id AND c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.AGENDADA")
     int cancelarSeAgendada(@Param("id") Long id);
 }

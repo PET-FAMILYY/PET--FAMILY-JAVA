@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
@@ -13,7 +14,7 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = "pet")
+@ToString(exclude = {"pet", "realizadaPor"})
 public class Consulta {
 
     @Id
@@ -39,6 +40,23 @@ public class Consulta {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pet_id", nullable = false)
     private Pet pet;
+
+    @Column(name = "criado_em", nullable = false, updatable = false)
+    private LocalDateTime criadoEm;
+
+    @Column(name = "realizada_em")
+    private LocalDateTime realizadaEm;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "realizada_por_usuario_id")
+    private Usuario realizadaPor;
+
+    @PrePersist
+    void aoCriar() {
+        if (criadoEm == null) {
+            criadoEm = LocalDateTime.now();
+        }
+    }
 
     public enum StatusConsulta {
         AGENDADA, REALIZADA, CANCELADA

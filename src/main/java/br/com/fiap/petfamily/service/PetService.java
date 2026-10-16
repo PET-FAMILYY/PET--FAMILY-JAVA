@@ -6,6 +6,7 @@ import br.com.fiap.petfamily.entity.Lembrete.StatusLembrete;
 import br.com.fiap.petfamily.entity.Pet;
 import br.com.fiap.petfamily.entity.Tutor;
 import br.com.fiap.petfamily.exception.ResourceNotFoundException;
+import br.com.fiap.petfamily.repository.ConsultaRepository;
 import br.com.fiap.petfamily.repository.LembreteRepository;
 import br.com.fiap.petfamily.repository.PetRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
@@ -25,24 +26,26 @@ public class PetService {
     private final PetRepository petRepository;
     private final TutorService tutorService;
     private final LembreteRepository lembreteRepository;
+    private final ConsultaRepository consultaRepository;
     private final SecurityUtils securityUtils;
 
     private final PetService self;
 
     public PetService(PetRepository petRepository, TutorService tutorService,
-                       LembreteRepository lembreteRepository, SecurityUtils securityUtils,
-                       @Lazy PetService self) {
+                      LembreteRepository lembreteRepository, ConsultaRepository consultaRepository,
+                      SecurityUtils securityUtils, @Lazy PetService self) {
         this.petRepository = petRepository;
         this.tutorService = tutorService;
         this.lembreteRepository = lembreteRepository;
+        this.consultaRepository = consultaRepository;
         this.securityUtils = securityUtils;
         this.self = self;
     }
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "pets", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
+            @CacheEvict(value = "pets", allEntries = true),
+            @CacheEvict(value = "dashboard", allEntries = true)
     })
     public PetResponse criar(PetRequest request) {
         Long tutorId = securityUtils.getTutorIdAutenticadoOuFalha();
@@ -87,8 +90,8 @@ public class PetService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "pets", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
+            @CacheEvict(value = "pets", allEntries = true),
+            @CacheEvict(value = "dashboard", allEntries = true)
     })
     public PetResponse atualizar(Long id, PetRequest request) {
         Pet pet = findById(id);
@@ -104,8 +107,8 @@ public class PetService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "pets", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
+            @CacheEvict(value = "pets", allEntries = true),
+            @CacheEvict(value = "dashboard", allEntries = true)
     })
     public void deletar(Long id) {
         Pet pet = findById(id);
@@ -119,7 +122,9 @@ public class PetService {
     }
 
     private PetResponse toResponse(Pet pet) {
-        long lembretesPendentes = lembreteRepository.findByPetIdAndStatus(pet.getId(), StatusLembrete.PENDENTE).size();
+        // COUNT no banco: antes carregava TODAS as consultas/lembretes do pet só para contar.
+        long lembretesPendentes = lembreteRepository.countByPetIdAndStatus(pet.getId(), StatusLembrete.PENDENTE);
+        long totalConsultas = consultaRepository.countByPetId(pet.getId());
         return PetResponse.builder()
                 .id(pet.getId())
                 .nome(pet.getNome())
@@ -130,7 +135,7 @@ public class PetService {
                 .observacoesSaude(pet.getObservacoesSaude())
                 .tutorId(pet.getTutor().getId())
                 .tutorNome(pet.getTutor().getNome())
-                .totalConsultas(pet.getConsultas().size())
+                .totalConsultas((int) totalConsultas)
                 .totalLembretesPendentes((int) lembretesPendentes)
                 .build();
     }

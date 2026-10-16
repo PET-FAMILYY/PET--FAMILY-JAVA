@@ -8,6 +8,7 @@ import br.com.fiap.petfamily.exception.ResourceNotFoundException;
 import br.com.fiap.petfamily.repository.InteracaoIARepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,6 +28,7 @@ public class InteracaoIAService {
     private final SecurityUtils securityUtils;
 
     @Transactional
+    @CacheEvict(value = "dashboard", allEntries = true)
     public InteracaoIAResponse criar(InteracaoIARequest request) {
         Pet pet = petService.findById(request.getPetId());
         Long tutorId = securityUtils.getTutorIdAutenticadoOuFalha();
@@ -77,58 +79,58 @@ public class InteracaoIAService {
 
         if (lower.contains("vacin")) {
             return String.format(
-                "Para %s (%s), é essencial manter o calendário vacinal em dia. As vacinas principais variam " +
-                "por espécie e estilo de vida. Recomendo consultar seu veterinário para montar o protocolo " +
-                "ideal. Em cães, as vacinas V8/V10 e antirrábica são fundamentais; em gatos, V4/V5 e FeLV.",
-                nomePet, especie);
+                    "Para %s (%s), é essencial manter o calendário vacinal em dia. As vacinas principais variam " +
+                            "por espécie e estilo de vida. Recomendo consultar seu veterinário para montar o protocolo " +
+                            "ideal. Em cães, as vacinas V8/V10 e antirrábica são fundamentais; em gatos, V4/V5 e FeLV.",
+                    nomePet, especie);
         }
         if (lower.contains("aliment") || lower.contains("ração") || lower.contains("comida")) {
             return String.format(
-                "A nutrição de %s deve ser adequada à espécie %s, faixa etária e condição corporal. " +
-                "Prefira rações de qualidade com proteína como primeiro ingrediente. Evite alimentos " +
-                "humanos como uva, cebola, chocolate e xilitol, que são tóxicos para pets.",
-                nomePet, especie);
+                    "A nutrição de %s deve ser adequada à espécie %s, faixa etária e condição corporal. " +
+                            "Prefira rações de qualidade com proteína como primeiro ingrediente. Evite alimentos " +
+                            "humanos como uva, cebola, chocolate e xilitol, que são tóxicos para pets.",
+                    nomePet, especie);
         }
         if (lower.contains("comportamento") || lower.contains("agitad") || lower.contains("agressiv")) {
             return String.format(
-                "Mudanças de comportamento em %s podem indicar estresse, dor, doença ou ansiedade. " +
-                "Observe padrões como perda de apetite, letargia ou isolamento. Se os sintomas persistirem " +
-                "por mais de 48h, procure atendimento veterinário para avaliação clínica completa.",
-                nomePet);
+                    "Mudanças de comportamento em %s podem indicar estresse, dor, doença ou ansiedade. " +
+                            "Observe padrões como perda de apetite, letargia ou isolamento. Se os sintomas persistirem " +
+                            "por mais de 48h, procure atendimento veterinário para avaliação clínica completa.",
+                    nomePet);
         }
         if (lower.contains("banho") || lower.contains("higiene") || lower.contains("pelo") || lower.contains("tosa")) {
             return String.format(
-                "A higiene de %s (%s) é fundamental para saúde e bem-estar. A frequência do banho varia por " +
-                "raça e pelagem. Use sempre produtos específicos para pets — produtos humanos podem alterar " +
-                "o pH da pele. Escovações regulares previnem nós e parasitas.",
-                nomePet, especie);
+                    "A higiene de %s (%s) é fundamental para saúde e bem-estar. A frequência do banho varia por " +
+                            "raça e pelagem. Use sempre produtos específicos para pets — produtos humanos podem alterar " +
+                            "o pH da pele. Escovações regulares previnem nós e parasitas.",
+                    nomePet, especie);
         }
         if (lower.contains("doença") || lower.contains("sintoma") || lower.contains("vômit") || lower.contains("diarr")) {
             return String.format(
-                "Se %s apresenta sintomas como vômito, diarreia, letargia ou perda de apetite, " +
-                "procure atendimento veterinário imediatamente. Não administre medicamentos humanos " +
-                "sem prescrição — muitos são tóxicos para pets. Hidratação adequada é essencial.",
-                nomePet);
+                    "Se %s apresenta sintomas como vômito, diarreia, letargia ou perda de apetite, " +
+                            "procure atendimento veterinário imediatamente. Não administre medicamentos humanos " +
+                            "sem prescrição — muitos são tóxicos para pets. Hidratação adequada é essencial.",
+                    nomePet);
         }
         if (lower.contains("parasit") || lower.contains("pulga") || lower.contains("carrapath") || lower.contains("verme")) {
             return String.format(
-                "O controle de parasitas em %s deve ser feito de forma preventiva e contínua. " +
-                "Antipulgas, anticarrapatos e vermífugos devem ser aplicados regularmente conforme " +
-                "orientação veterinária. A prevenção protege tanto o pet quanto a família.",
-                nomePet);
+                    "O controle de parasitas em %s deve ser feito de forma preventiva e contínua. " +
+                            "Antipulgas, anticarrapatos e vermífugos devem ser aplicados regularmente conforme " +
+                            "orientação veterinária. A prevenção protege tanto o pet quanto a família.",
+                    nomePet);
         }
         if (lower.contains("castração") || lower.contains("castrar") || lower.contains("esteriliz")) {
             return String.format(
-                "A castração de %s traz benefícios como prevenção de doenças reprodutivas, redução " +
-                "de comportamentos indesejados e controle populacional. O momento ideal varia por " +
-                "espécie e raça. Consulte seu veterinário para avaliar o melhor momento para %s.",
-                nomePet, nomePet);
+                    "A castração de %s traz benefícios como prevenção de doenças reprodutivas, redução " +
+                            "de comportamentos indesejados e controle populacional. O momento ideal varia por " +
+                            "espécie e raça. Consulte seu veterinário para avaliar o melhor momento para %s.",
+                    nomePet, nomePet);
         }
         return String.format(
-            "Olá! Estou aqui para ajudar com o cuidado de %s (%s). Posso orientar sobre alimentação, " +
-            "vacinação, higiene, comportamento e saúde preventiva. Para diagnósticos e tratamentos, " +
-            "sempre consulte um médico veterinário. Como posso ajudar melhor hoje?",
-            nomePet, especie);
+                "Olá! Estou aqui para ajudar com o cuidado de %s (%s). Posso orientar sobre alimentação, " +
+                        "vacinação, higiene, comportamento e saúde preventiva. Para diagnósticos e tratamentos, " +
+                        "sempre consulte um médico veterinário. Como posso ajudar melhor hoje?",
+                nomePet, especie);
     }
 
     private InteracaoIAResponse toResponse(InteracaoIA i) {

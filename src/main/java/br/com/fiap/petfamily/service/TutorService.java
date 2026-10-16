@@ -27,7 +27,7 @@ public class TutorService {
     private final TutorService self;
 
     public TutorService(TutorRepository tutorRepository, UsuarioRepository usuarioRepository,
-                         SecurityUtils securityUtils, @Lazy TutorService self) {
+                        SecurityUtils securityUtils, @Lazy TutorService self) {
         this.tutorRepository = tutorRepository;
         this.usuarioRepository = usuarioRepository;
         this.securityUtils = securityUtils;
@@ -55,15 +55,18 @@ public class TutorService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "tutores", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
+            @CacheEvict(value = "tutores", allEntries = true),
+            @CacheEvict(value = "dashboard", allEntries = true)
     })
     public TutorResponse atualizar(Long id, TutorRequest request) {
         securityUtils.exigirTutorDono(id, "Você só pode acessar o próprio cadastro de tutor.");
         Tutor tutor = findById(id);
 
         String novoEmail = request.getEmail().trim().toLowerCase();
-        if (!novoEmail.equalsIgnoreCase(tutor.getEmail()) && tutorRepository.existsByEmail(novoEmail)) {
+        boolean mudouEmail = !novoEmail.equalsIgnoreCase(tutor.getEmail());
+        // Confere TAMBÉM a tabela de usuários (o e-mail é o login e também é único lá).
+        if (mudouEmail && (tutorRepository.existsByEmail(novoEmail)
+                || usuarioRepository.existsByEmailIgnoreCase(novoEmail))) {
             throw new EmailJaCadastradoException(novoEmail);
         }
 
@@ -72,7 +75,9 @@ public class TutorService {
         tutor.setTelefone(request.getTelefone());
         Tutor salvo = tutorRepository.save(tutor);
 
-        usuarioRepository.findByEmailIgnoreCase(tutor.getEmail()).ifPresent(usuario -> {
+        // BUG corrigido: antes buscava o usuário pelo e-mail NOVO (que ainda não existia),
+        // então o login nunca era atualizado. Agora busca pelo vínculo tutor_id.
+        usuarioRepository.findByTutorId(id).ifPresent(usuario -> {
             usuario.setNome(request.getNome());
             usuario.setEmail(novoEmail);
             usuarioRepository.save(usuario);
@@ -83,13 +88,18 @@ public class TutorService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "tutores", allEntries = true),
-        @CacheEvict(value = "pets", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
+            @CacheEvict(value = "tutores", allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true),
+            @CacheEvict(value = "dashboard", allEntries = true)
     })
     public void deletar(Long id) {
         securityUtils.exigirTutorDono(id, "Você só pode acessar o próprio cadastro de tutor.");
-        tutorRepository.delete(findById(id));
+        Tutor tutor = findById(id);
+
+        // Remove o login vinculado ANTES do tutor, para o token deixar de valer.
+        usuarioRepository.findByTutorId(id).ifPresent(usuarioRepository::delete);
+
+        tutorRepository.delete(tutor);
     }
 
     Tutor findById(Long id) {

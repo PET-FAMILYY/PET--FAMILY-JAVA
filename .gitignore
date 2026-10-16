@@ -14,3 +14,6 @@ target/
 # Banco H2
 *.db
 *.mv.db
+
+data/
+.env

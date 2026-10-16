@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Data
@@ -20,4 +21,7 @@ public class ConsultaResponse {
     private String petNome;
     private Long tutorId;
     private String tutorNome;
+    private LocalDateTime criadoEm;
+    private LocalDateTime realizadaEm;
+    private String realizadaPorNome;
 }

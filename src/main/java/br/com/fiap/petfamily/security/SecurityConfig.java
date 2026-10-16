@@ -21,6 +21,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -39,6 +40,11 @@ public class SecurityConfig {
 
     @Value("${cors.allowed-origins}")
     private String corsAllowedOrigins;
+
+    // Só é true no perfil "dev" (application-dev.properties). Em prod/test a
+    // rota /h2-console NÃO é liberada: cai em anyRequest().authenticated().
+    @Value("${spring.h2.console.enabled:false}")
+    private boolean h2ConsoleHabilitado;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -82,32 +88,44 @@ public class SecurityConfig {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authenticationProvider(authenticationProvider())
-            .exceptionHandling(handling -> handling
-                .authenticationEntryPoint((request, response, ex) ->
-                    escreverErro(response, mapper, HttpStatus.UNAUTHORIZED,
-                            "Não autenticado", "Token ausente, inválido ou expirado.", request.getRequestURI()))
-                .accessDeniedHandler((request, response, ex) ->
-                    escreverErro(response, mapper, HttpStatus.FORBIDDEN,
-                            "Acesso negado", "Você não tem permissão para executar esta ação.", request.getRequestURI()))
-            )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/login", "/auth/registrar").permitAll()
-                .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authenticationProvider(authenticationProvider())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint((request, response, ex) ->
+                                escreverErro(response, mapper, HttpStatus.UNAUTHORIZED,
+                                        "Não autenticado", "Token ausente, inválido ou expirado.", request.getRequestURI()))
+                        .accessDeniedHandler((request, response, ex) ->
+                                escreverErro(response, mapper, HttpStatus.FORBIDDEN,
+                                        "Acesso negado", "Você não tem permissão para executar esta ação.", request.getRequestURI()))
+                )
+                .authorizeHttpRequests(auth -> {
+                    // AntPathRequestMatcher evita a ambiguidade MVC x servlet do H2 Console
+                    auth.requestMatchers(AntPathRequestMatcher.antMatcher("/auth/login"),
+                            AntPathRequestMatcher.antMatcher("/auth/registrar")).permitAll();
+                    auth.requestMatchers(AntPathRequestMatcher.antMatcher("/swagger-ui/**"),
+                            AntPathRequestMatcher.antMatcher("/api-docs/**"),
+                            AntPathRequestMatcher.antMatcher("/v3/api-docs/**")).permitAll();
+                    if (h2ConsoleHabilitado) {
+                        auth.requestMatchers(AntPathRequestMatcher.antMatcher("/h2-console/**")).permitAll();
+                    }
+                    auth.anyRequest().authenticated();
+                })
+                // frameOptions(sameOrigin) só é necessário para o H2 Console (usa <frame>);
+                // com ele desligado mantém o padrão seguro (DENY).
+                .headers(headers -> {
+                    if (h2ConsoleHabilitado) {
+                        headers.frameOptions(frame -> frame.sameOrigin());
+                    }
+                })
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     private void escreverErro(HttpServletResponse response, ObjectMapper mapper, HttpStatus status,
-                               String error, String message, String path) throws java.io.IOException {
+                              String error, String message, String path) throws java.io.IOException {
         response.setStatus(status.value());
         response.setContentType("application/json;charset=UTF-8");
         ErrorResponse body = ErrorResponse.builder()

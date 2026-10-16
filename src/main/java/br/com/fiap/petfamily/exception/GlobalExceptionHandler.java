@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -39,25 +41,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailJaCadastradoException.class)
     public ResponseEntity<ErrorResponse> handleEmailJaCadastrado(EmailJaCadastradoException ex,
-                                                                   HttpServletRequest request) {
+                                                                 HttpServletRequest request) {
         return conflito(ex.getMessage(), request);
     }
 
     @ExceptionHandler(ConflitoOperacaoException.class)
     public ResponseEntity<ErrorResponse> handleConflitoOperacao(ConflitoOperacaoException ex,
-                                                                  HttpServletRequest request) {
+                                                                HttpServletRequest request) {
         return conflito(ex.getMessage(), request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
-                                                                        HttpServletRequest request) {
+                                                                      HttpServletRequest request) {
         return conflito("Operação viola uma restrição de integridade dos dados (registro duplicado ou em uso).", request);
     }
 
     @ExceptionHandler(OperacaoInvalidaException.class)
     public ResponseEntity<ErrorResponse> handleOperacaoInvalida(OperacaoInvalidaException ex,
-                                                                   HttpServletRequest request) {
+                                                                HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -70,7 +72,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex,
-                                                                 HttpServletRequest request) {
+                                                              HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -83,7 +85,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex,
-                                                               HttpServletRequest request) {
+                                                            HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.FORBIDDEN.value())
@@ -96,7 +98,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
-                                                                     HttpServletRequest request) {
+                                                                  HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.METHOD_NOT_ALLOWED.value())
@@ -109,7 +111,37 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoHandlerFound(NoHandlerFoundException ex,
-                                                                 HttpServletRequest request) {
+                                                              HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Not Found")
+                .message("Rota não encontrada: " + request.getRequestURI())
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    // JSON malformado, data/horário em formato inválido, enum desconhecido...
+    // Antes caía no handler genérico e virava 500; o erro é do cliente => 400.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMensagemIlegivel(HttpMessageNotReadableException ex,
+                                                                HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Bad Request")
+                .message("Corpo da requisição inválido ou malformado (verifique o JSON e os formatos de data/hora).")
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    // Spring 6.1+: rota inexistente lança NoResourceFoundException (e não
+    // NoHandlerFoundException). Sem este handler, virava 500.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleRecursoNaoEncontrado(NoResourceFoundException ex,
+                                                                    HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
@@ -149,7 +181,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
-                                                             HttpServletRequest request) {
+                                                            HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())

@@ -7,11 +7,13 @@ import br.com.fiap.petfamily.entity.Consulta;
 import br.com.fiap.petfamily.entity.Consulta.StatusConsulta;
 import br.com.fiap.petfamily.entity.ConsultaSlot;
 import br.com.fiap.petfamily.entity.Pet;
+import br.com.fiap.petfamily.entity.Usuario;
 import br.com.fiap.petfamily.exception.ConflitoOperacaoException;
 import br.com.fiap.petfamily.exception.OperacaoInvalidaException;
 import br.com.fiap.petfamily.exception.ResourceNotFoundException;
 import br.com.fiap.petfamily.repository.ConsultaRepository;
 import br.com.fiap.petfamily.repository.ConsultaSlotRepository;
+import br.com.fiap.petfamily.repository.UsuarioRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
 import br.com.fiap.petfamily.security.UsuarioPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -32,30 +36,43 @@ public class ConsultaService {
 
     private static final String CACHE_CONSULTAS = "consultas";
     private static final String CACHE_DASHBOARD = "dashboard";
+    private static final String CACHE_PETS = "pets";
 
     private final ConsultaRepository consultaRepository;
     private final ConsultaSlotRepository consultaSlotRepository;
+    private final UsuarioRepository usuarioRepository;
     private final PetService petService;
     private final SecurityUtils securityUtils;
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = CACHE_PETS, allEntries = true)
     })
     public ConsultaResponse agendar(AgendarConsultaRequest request) {
         securityUtils.getTutorIdAutenticadoOuFalha();
         Pet pet = petService.findById(request.getPetId());
         securityUtils.exigirTutorDono(pet.getTutor().getId(), "O pet informado não pertence ao tutor autenticado.");
 
-        LocalDateTime momentoAgendado = LocalDateTime.of(request.getData(), request.getHorario());
+        // Normaliza para minutos: 10:00:00 e 10:00:30 não podem virar "dois horários".
+        LocalTime horario = request.getHorario().truncatedTo(ChronoUnit.MINUTES);
+
+        LocalDateTime momentoAgendado = LocalDateTime.of(request.getData(), horario);
         if (!momentoAgendado.isAfter(LocalDateTime.now())) {
             throw new OperacaoInvalidaException("A consulta deve ser marcada para uma data e horário futuros.");
         }
 
+        // Checagem antecipada (mensagem clara, sem depender da exceção do banco).
+        // A UNIQUE(data, horario) continua sendo a garantia final contra concorrência.
+        if (consultaSlotRepository.existsByDataAndHorario(request.getData(), horario)) {
+            throw new ConflitoOperacaoException(
+                    "Já existe uma consulta agendada para " + request.getData() + " às " + horario + ".");
+        }
+
         Consulta consulta = consultaRepository.save(Consulta.builder()
                 .data(request.getData())
-                .horario(request.getHorario())
+                .horario(horario)
                 .tipoConsulta(request.getTipoConsulta())
                 .status(StatusConsulta.AGENDADA)
                 .observacoes(request.getObservacoes())
@@ -65,12 +82,12 @@ public class ConsultaService {
         try {
             consultaSlotRepository.saveAndFlush(ConsultaSlot.builder()
                     .data(request.getData())
-                    .horario(request.getHorario())
+                    .horario(horario)
                     .consultaId(consulta.getId())
                     .build());
         } catch (DataIntegrityViolationException ex) {
             throw new ConflitoOperacaoException(
-                    "Já existe uma consulta agendada para " + request.getData() + " às " + request.getHorario() + ".");
+                    "Já existe uma consulta agendada para " + request.getData() + " às " + horario + ".");
         }
 
         return toResponse(consulta);
@@ -78,12 +95,16 @@ public class ConsultaService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = CACHE_PETS, allEntries = true)
     })
     public ConsultaResponse realizar(Long id, RealizarConsultaRequest request) {
         Consulta consulta = findById(id);
-        int atualizados = consultaRepository.realizarSeAgendada(id, request.getObservacoes());
+        Usuario veterinario = usuarioRepository.findById(securityUtils.getUsuarioAutenticado().getUsuarioId())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
+        int atualizados = consultaRepository.realizarSeAgendada(
+                id, request.getObservacoes(), LocalDateTime.now(), veterinario);
         if (atualizados == 0) {
             throw new ConflitoOperacaoException(
                     "Consulta não pode ser realizada: status atual é " + consulta.getStatus() + ".");
@@ -93,8 +114,9 @@ public class ConsultaService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = CACHE_PETS, allEntries = true)
     })
     public ConsultaResponse cancelar(Long id) {
         Consulta consulta = findById(id);
@@ -133,7 +155,9 @@ public class ConsultaService {
 
     @Transactional(readOnly = true)
     public Page<ConsultaResponse> listarFuturas(Pageable pageable) {
-        return consultaRepository.findConsultasFuturas(LocalDate.now(), pageable).map(this::toResponse);
+        return consultaRepository
+                .findByStatusAndDataGreaterThanEqual(StatusConsulta.AGENDADA, LocalDate.now(), pageable)
+                .map(this::toResponse);
     }
 
     Consulta findById(Long id) {
@@ -153,6 +177,9 @@ public class ConsultaService {
                 .petNome(c.getPet().getNome())
                 .tutorId(c.getPet().getTutor().getId())
                 .tutorNome(c.getPet().getTutor().getNome())
+                .criadoEm(c.getCriadoEm())
+                .realizadaEm(c.getRealizadaEm())
+                .realizadaPorNome(c.getRealizadaPor() != null ? c.getRealizadaPor().getNome() : null)
                 .build();
     }
 }

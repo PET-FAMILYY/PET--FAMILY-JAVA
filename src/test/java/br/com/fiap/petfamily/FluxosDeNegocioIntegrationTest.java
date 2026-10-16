@@ -4,6 +4,7 @@ import br.com.fiap.petfamily.entity.Usuario;
 import br.com.fiap.petfamily.repository.UsuarioRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,12 +12,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -24,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@TestPropertySource(properties = "cors.allowed-origins=*")
 class FluxosDeNegocioIntegrationTest {
 
     @Autowired
@@ -37,6 +42,9 @@ class FluxosDeNegocioIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private Flyway flyway;
 
     private String tutorAToken;
     private String tutorBToken;
@@ -178,6 +186,153 @@ class FluxosDeNegocioIntegrationTest {
         mockMvc.perform(get("/lembretes/meus").header("Authorization", "Bearer " + tutorAToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.dataLembrete == '2030-01-31')]").exists());
+    }
+
+    // ------------------------------------------------------------------
+    // Testes adicionados na correção pós-avaliação
+    // ------------------------------------------------------------------
+
+    @Test
+    void todasAsMigrationsForamAplicadasSemPendencias() {
+        assertTrue(flyway.info().applied().length >= 6, "esperado V1..V6 aplicadas");
+        assertEquals(0, flyway.info().pending().length);
+    }
+
+    @Test
+    void h2ConsoleNaoEstaLiberadoSemLoginForaDoPerfilDev() throws Exception {
+        mockMvc.perform(get("/h2-console")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/h2-console/")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void jsonMalformadoRetorna400EmVezDe500() throws Exception {
+        mockMvc.perform(post("/consultas/agendar")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"petId":%d,"tipoConsulta":"x","data":"nao-e-data","horario":"10:00"}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rotaInexistenteRetorna404EmVezDe500() throws Exception {
+        mockMvc.perform(get("/rota-que-nao-existe").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void agendaFuturaDoVeterinarioNaoMostraConsultasCanceladas() throws Exception {
+        MvcResult agendada = mockMvc.perform(post("/consultas/agendar")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"petId":%d,"tipoConsulta":"Checkup","data":"2030-08-01","horario":"09:00"}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long id = campo(agendada, "id").asLong();
+
+        mockMvc.perform(get("/consultas/futuras").header("Authorization", "Bearer " + vetToken))
+                .andExpect(jsonPath("$.content[?(@.id == %d)]".formatted(id)).exists());
+
+        mockMvc.perform(post("/consultas/" + id + "/cancelar").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/consultas/futuras").header("Authorization", "Bearer " + vetToken))
+                .andExpect(jsonPath("$.content[?(@.id == %d)]".formatted(id)).doesNotExist());
+    }
+
+    @Test
+    void atendimentoRegistraQuemERealizou() throws Exception {
+        MvcResult agendada = mockMvc.perform(post("/consultas/agendar")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"petId":%d,"tipoConsulta":"Checkup","data":"2030-09-01","horario":"11:00"}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long id = campo(agendada, "id").asLong();
+
+        mockMvc.perform(post("/consultas/" + id + "/realizar")
+                        .header("Authorization", "Bearer " + vetToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"observacoes":"Tudo certo"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.realizadaPorNome").value("Vet Teste"))
+                .andExpect(jsonPath("$.realizadaEm").exists());
+    }
+
+    @Test
+    void cuidadoJaConcluidoNaoPodeSerEditado() throws Exception {
+        MvcResult cuidado = mockMvc.perform(post("/lembretes")
+                        .header("Authorization", "Bearer " + vetToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"titulo":"Vacina","dataLembrete":"2030-01-01","tipo":"Vacinacao","petId":%d}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long id = campo(cuidado, "id").asLong();
+
+        mockMvc.perform(post("/lembretes/" + id + "/concluir").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/lembretes/" + id)
+                        .header("Authorization", "Bearer " + vetToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"titulo":"Alterado","dataLembrete":"2031-01-01","tipo":"Vacinacao","petId":%d}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void alterarEmailDoTutorAtualizaTambemOLogin() throws Exception {
+        MvcResult login = mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {"email":"tutora@teste.com","senha":"senha123"}"""))
+                .andExpect(status().isOk())
+                .andReturn();
+        long tutorId = campo(login, "tutorId").asLong();
+
+        mockMvc.perform(put("/tutores/" + tutorId)
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"nome":"Tutor A Novo","email":"novo.tutora@teste.com","telefone":"11999990000"}"""))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {"email":"novo.tutora@teste.com","senha":"senha123"}"""))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {"email":"tutora@teste.com","senha":"senha123"}"""))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void tokenDeContaExcluidaRetorna401() throws Exception {
+        MvcResult login = mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {"email":"tutorb@teste.com","senha":"senha123"}"""))
+                .andReturn();
+        long tutorId = campo(login, "tutorId").asLong();
+
+        mockMvc.perform(delete("/tutores/" + tutorId).header("Authorization", "Bearer " + tutorBToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + tutorBToken))
+                .andExpect(status().isUnauthorized());
     }
 
     private String registrarERecuperarToken(String nome, String email) throws Exception {

@@ -45,7 +45,7 @@ public class ConsultaController {
     @PreAuthorize("hasRole('VETERINARIO')")
     @Operation(summary = "Veterinário registra o atendimento; consulta passa a REALIZADA")
     public ResponseEntity<ConsultaResponse> realizar(@PathVariable Long id,
-                                                       @Valid @RequestBody RealizarConsultaRequest request) {
+                                                     @Valid @RequestBody RealizarConsultaRequest request) {
         return ResponseEntity.ok(consultaService.realizar(id, request));
     }
 
@@ -67,7 +67,7 @@ public class ConsultaController {
     @PreAuthorize("hasRole('VETERINARIO')")
     @Operation(summary = "Listar consultas agendadas a partir de hoje (visão clínica)")
     public ResponseEntity<Page<ConsultaResponse>> listarFuturas(
-            @PageableDefault(size = 10, sort = "data") Pageable pageable) {
+            @PageableDefault(size = 10, sort = {"data", "horario"}) Pageable pageable) {
         return ResponseEntity.ok(consultaService.listarFuturas(pageable));
     }
 }

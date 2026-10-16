@@ -38,8 +38,9 @@ public class LembreteService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true)
     })
     public LembreteResponse criar(LembreteRequest request) {
         Pet pet = petService.findById(request.getPetId());
@@ -98,8 +99,9 @@ public class LembreteService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true)
     })
     public LembreteResponse concluir(Long id) {
         Lembrete lembrete = findById(id);
@@ -113,12 +115,16 @@ public class LembreteService {
         String descricao = lembrete.getDescricao();
         String tipo = lembrete.getTipo();
         Integer recorrenciaDias = lembrete.getRecorrenciaDias();
-        LocalDate proximaData = lembrete.getDataLembrete();
+        // Recorrência ancorada em HOJE quando o cuidado estava atrasado; do contrário
+        // a "próxima" ocorrência já nasceria vencida (ex.: vacina de 90 dias, feita
+        // com 100 dias de atraso, geraria outra já atrasada).
+        LocalDate hoje = LocalDate.now();
+        LocalDate proximaData = lembrete.getDataLembrete().isBefore(hoje) ? hoje : lembrete.getDataLembrete();
         Usuario criadoPor = lembrete.getCriadoPor();
         var pet = lembrete.getPet();
         StatusLembrete statusAnterior = lembrete.getStatus();
 
-        int atualizados = lembreteRepository.concluirSeAindaPendente(id, LocalDate.now(), tutorUsuario);
+        int atualizados = lembreteRepository.concluirSeAindaPendente(id, hoje, tutorUsuario);
         if (atualizados == 0) {
             throw new ConflitoOperacaoException(
                     "Cuidado não pode ser concluído: status atual é " + statusAnterior + ".");
@@ -133,7 +139,7 @@ public class LembreteService {
                     .status(StatusLembrete.PENDENTE)
                     .recorrenciaDias(recorrenciaDias)
                     .criadoPor(criadoPor)
-                    .origemLembrete(Lembrete.builder().id(id).build())
+                    .origemLembrete(lembreteRepository.getReferenceById(id))
                     .pet(pet)
                     .build());
         }
@@ -143,8 +149,9 @@ public class LembreteService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true)
     })
     public LembreteResponse cancelar(Long id) {
         Lembrete lembrete = findById(id);
@@ -158,11 +165,16 @@ public class LembreteService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true)
     })
     public LembreteResponse atualizar(Long id, LembreteRequest request) {
         Lembrete lembrete = findById(id);
+        if (lembrete.getStatus() != StatusLembrete.PENDENTE) {
+            throw new ConflitoOperacaoException(
+                    "Cuidado não pode ser editado: status atual é " + lembrete.getStatus() + ".");
+        }
         Pet pet = petService.findById(request.getPetId());
         lembrete.setTitulo(request.getTitulo());
         lembrete.setDescricao(request.getDescricao());
@@ -175,8 +187,9 @@ public class LembreteService {
 
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-        @CacheEvict(value = CACHE_DASHBOARD, allEntries = true)
+            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
+            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
+            @CacheEvict(value = "pets", allEntries = true)
     })
     public void deletar(Long id) {
         lembreteRepository.delete(findById(id));
