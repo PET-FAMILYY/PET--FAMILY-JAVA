@@ -62,8 +62,7 @@ public class ConsultaService {
         // Checagem antecipada (mensagem clara, sem depender da exceção do banco).
         // A UNIQUE(data, horario) continua sendo a garantia final contra concorrência.
         if (consultaSlotRepository.existsByDataAndHorario(request.getData(), horario)) {
-            throw new ConflitoOperacaoException(
-                    "Já existe uma consulta agendada para " + request.getData() + " às " + horario + ".");
+            throw conflitoDeHorario(request.getData(), horario);
         }
 
         Consulta consulta = consultaRepository.save(Consulta.builder()
@@ -82,8 +81,7 @@ public class ConsultaService {
                     .consultaId(consulta.getId())
                     .build());
         } catch (DataIntegrityViolationException ex) {
-            throw new ConflitoOperacaoException(
-                    "Já existe uma consulta agendada para " + request.getData() + " às " + horario + ".");
+            throw conflitoDeHorario(request.getData(), horario);
         }
 
         return toResponse(consulta);
@@ -168,5 +166,10 @@ public class ConsultaService {
                 .realizadaEm(c.getRealizadaEm())
                 .realizadaPorNome(c.getRealizadaPor() != null ? c.getRealizadaPor().getNome() : null)
                 .build();
+    }
+
+    private ConflitoOperacaoException conflitoDeHorario(LocalDate data, LocalTime horario) {
+        return new ConflitoOperacaoException(
+                "Já existe uma consulta agendada para " + data + " às " + horario + ".");
     }
 }
