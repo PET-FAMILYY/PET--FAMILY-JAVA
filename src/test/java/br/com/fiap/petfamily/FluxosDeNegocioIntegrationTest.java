@@ -428,6 +428,18 @@ class FluxosDeNegocioIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void sextaTentativaDeLoginErradaRetorna429() throws Exception {
+        String corpo = """
+            {"email":"bloqueio@teste.com","senha":"errada"}""";
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/auth/login").contentType("application/json").content(corpo))
+                    .andExpect(status().isUnauthorized());
+        }
+        mockMvc.perform(post("/auth/login").contentType("application/json").content(corpo))
+                .andExpect(status().isTooManyRequests());
+    }
+
     private JsonNode campo(MvcResult result, String nomeDoCampo) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get(nomeDoCampo);
     }

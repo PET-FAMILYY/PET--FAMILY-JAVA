@@ -10,6 +10,7 @@ import br.com.fiap.petfamily.exception.EmailJaCadastradoException;
 import br.com.fiap.petfamily.repository.TutorRepository;
 import br.com.fiap.petfamily.repository.UsuarioRepository;
 import br.com.fiap.petfamily.security.JwtService;
+import br.com.fiap.petfamily.security.LoginAttemptService;
 import br.com.fiap.petfamily.security.SecurityUtils;
 import br.com.fiap.petfamily.security.UsuarioPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final SecurityUtils securityUtils;
+    private final LoginAttemptService  loginAttemptService;
 
     @Transactional
     public LoginResponse registrar(RegistroRequest request) {
@@ -60,12 +62,15 @@ public class AuthService {
 
     public LoginResponse login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase();
+        loginAttemptService.exigirNaoBloqueado(email);
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, request.getSenha()));
         } catch (org.springframework.security.core.AuthenticationException ex) {
+            loginAttemptService.registrarFalha(email);
             throw new BadCredentialsException("E-mail ou senha inválidos.");
         }
+        loginAttemptService.limpar(email);
 
         Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BadCredentialsException("E-mail ou senha inválidos."));
