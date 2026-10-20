@@ -364,6 +364,70 @@ class FluxosDeNegocioIntegrationTest {
         return campo(result, "token").asText();
     }
 
+    @Test
+    void petFilhoteComIdadeZeroPodeSerCadastrado() throws Exception {
+        mockMvc.perform(post("/pets")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                            {"nome":"Filhote","especie":"Gato","idade":0,"peso":0.8}"""))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.idade").value(0));
+    }
+
+    @Test
+    void ordenacaoPorCampoInexistenteRetorna400EmVezDe500() throws Exception {
+        mockMvc.perform(get("/pets?sort=campoQueNaoExiste")
+                        .header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void filtroDeEspecieFuncionaTambemParaOTutor() throws Exception {
+        mockMvc.perform(post("/pets")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                            {"nome":"Mingau","especie":"Gato"}"""))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/pets?especie=gato").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].nome").value("Mingau"));
+    }
+
+    @Test
+    void tutorQueConcluiuCuidadoConsegueExcluirAPropriaConta() throws Exception {
+        MvcResult cuidado = mockMvc.perform(post("/lembretes")
+                        .header("Authorization", "Bearer " + vetToken)
+                        .contentType("application/json")
+                        .content("""
+                            {"titulo":"Vacina","dataLembrete":"2030-01-01","tipo":"Vacinacao","petId":%d}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long lembreteId = campo(cuidado, "id").asLong();
+
+        mockMvc.perform(post("/lembretes/" + lembreteId + "/concluir")
+                        .header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk());
+
+        MvcResult login = mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                            {"email":"tutora@teste.com","senha":"senha123"}"""))
+                .andExpect(status().isOk())
+                .andReturn();
+        long tutorId = campo(login, "tutorId").asLong();
+
+        mockMvc.perform(delete("/tutores/" + tutorId).header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isUnauthorized());
+    }
+
     private JsonNode campo(MvcResult result, String nomeDoCampo) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get(nomeDoCampo);
     }

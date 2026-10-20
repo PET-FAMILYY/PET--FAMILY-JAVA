@@ -22,4 +22,8 @@ public class CacheConfig {
                 .recordStats());
         return manager;
     }
+
+    CaffeineCacheManager manager = new CaffeineCacheManager(
+            CacheNames.TUTORES, CacheNames.PETS, CacheNames.CONSULTAS,
+            CacheNames.LEMBRETES, CacheNames.DASHBOARD);
 }

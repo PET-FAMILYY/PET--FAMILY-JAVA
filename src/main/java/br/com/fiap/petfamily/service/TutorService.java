@@ -1,16 +1,16 @@
 package br.com.fiap.petfamily.service;
 
+import br.com.fiap.petfamily.config.InvalidaCaches;
 import br.com.fiap.petfamily.dto.request.TutorRequest;
 import br.com.fiap.petfamily.dto.response.TutorResponse;
 import br.com.fiap.petfamily.entity.Tutor;
 import br.com.fiap.petfamily.exception.EmailJaCadastradoException;
 import br.com.fiap.petfamily.exception.ResourceNotFoundException;
+import br.com.fiap.petfamily.repository.PetRepository;
 import br.com.fiap.petfamily.repository.TutorRepository;
 import br.com.fiap.petfamily.repository.UsuarioRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,13 +23,15 @@ public class TutorService {
     private final TutorRepository tutorRepository;
     private final UsuarioRepository usuarioRepository;
     private final SecurityUtils securityUtils;
+    private final PetRepository petRepository;
 
     private final TutorService self;
 
     public TutorService(TutorRepository tutorRepository, UsuarioRepository usuarioRepository,
-                        SecurityUtils securityUtils, @Lazy TutorService self) {
+                        PetRepository petRepository, SecurityUtils securityUtils, @Lazy TutorService self) {
         this.tutorRepository = tutorRepository;
         this.usuarioRepository = usuarioRepository;
+        this.petRepository = petRepository;
         this.securityUtils = securityUtils;
         this.self = self;
     }
@@ -54,10 +56,7 @@ public class TutorService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "tutores", allEntries = true),
-            @CacheEvict(value = "dashboard", allEntries = true)
-    })
+    @InvalidaCaches
     public TutorResponse atualizar(Long id, TutorRequest request) {
         securityUtils.exigirTutorDono(id, "Você só pode acessar o próprio cadastro de tutor.");
         Tutor tutor = findById(id);
@@ -87,11 +86,7 @@ public class TutorService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "tutores", allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true),
-            @CacheEvict(value = "dashboard", allEntries = true)
-    })
+    @InvalidaCaches
     public void deletar(Long id) {
         securityUtils.exigirTutorDono(id, "Você só pode acessar o próprio cadastro de tutor.");
         Tutor tutor = findById(id);
@@ -113,7 +108,7 @@ public class TutorService {
                 .nome(tutor.getNome())
                 .email(tutor.getEmail())
                 .telefone(tutor.getTelefone())
-                .totalPets(tutor.getPets().size())
+                .totalPets((int) petRepository.countByTutorId(tutor.getId()))
                 .build();
     }
 }

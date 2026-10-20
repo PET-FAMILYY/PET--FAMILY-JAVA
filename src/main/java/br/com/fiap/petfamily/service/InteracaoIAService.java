@@ -1,5 +1,6 @@
 package br.com.fiap.petfamily.service;
 
+import br.com.fiap.petfamily.config.InvalidaCaches;
 import br.com.fiap.petfamily.dto.request.InteracaoIARequest;
 import br.com.fiap.petfamily.dto.response.InteracaoIAResponse;
 import br.com.fiap.petfamily.entity.InteracaoIA;
@@ -8,7 +9,6 @@ import br.com.fiap.petfamily.exception.ResourceNotFoundException;
 import br.com.fiap.petfamily.repository.InteracaoIARepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,7 +28,7 @@ public class InteracaoIAService {
     private final SecurityUtils securityUtils;
 
     @Transactional
-    @CacheEvict(value = "dashboard", allEntries = true)
+    @InvalidaCaches
     public InteracaoIAResponse criar(InteracaoIARequest request) {
         Pet pet = petService.findById(request.getPetId());
         Long tutorId = securityUtils.getTutorIdAutenticadoOuFalha();

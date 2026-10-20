@@ -102,6 +102,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> {
                     // AntPathRequestMatcher evita a ambiguidade MVC x servlet do H2 Console
+                    auth.requestMatchers(AntPathRequestMatcher.antMatcher("/actuator/health/**")).permitAll();
                     auth.requestMatchers(AntPathRequestMatcher.antMatcher("/auth/login"),
                             AntPathRequestMatcher.antMatcher("/auth/registrar")).permitAll();
                     auth.requestMatchers(AntPathRequestMatcher.antMatcher("/swagger-ui/**"),
@@ -128,13 +129,6 @@ public class SecurityConfig {
                               String error, String message, String path) throws java.io.IOException {
         response.setStatus(status.value());
         response.setContentType("application/json;charset=UTF-8");
-        ErrorResponse body = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(error)
-                .message(message)
-                .path(path)
-                .build();
-        response.getWriter().write(mapper.writeValueAsString(body));
+        response.getWriter().write(mapper.writeValueAsString(ErrorResponse.of(status, error, message, path)));
     }
 }

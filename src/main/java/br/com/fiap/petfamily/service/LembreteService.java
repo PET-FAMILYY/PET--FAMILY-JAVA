@@ -1,5 +1,6 @@
 package br.com.fiap.petfamily.service;
 
+import br.com.fiap.petfamily.config.InvalidaCaches;
 import br.com.fiap.petfamily.dto.request.LembreteRequest;
 import br.com.fiap.petfamily.dto.response.LembreteResponse;
 import br.com.fiap.petfamily.entity.Lembrete;
@@ -11,10 +12,9 @@ import br.com.fiap.petfamily.exception.ResourceNotFoundException;
 import br.com.fiap.petfamily.repository.LembreteRepository;
 import br.com.fiap.petfamily.repository.UsuarioRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
+import br.com.fiap.petfamily.security.UsuarioAtual;
 import br.com.fiap.petfamily.security.UsuarioPrincipal;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,20 +32,15 @@ public class LembreteService {
     private static final String CACHE_DASHBOARD = "dashboard";
 
     private final LembreteRepository lembreteRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioAtual usuarioAtual;
     private final PetService petService;
     private final SecurityUtils securityUtils;
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true)
-    })
+    @InvalidaCaches
     public LembreteResponse criar(LembreteRequest request) {
         Pet pet = petService.findById(request.getPetId());
-        Usuario veterinario = usuarioRepository.findById(securityUtils.getUsuarioAutenticado().getUsuarioId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
+        Usuario veterinario = usuarioAtual.entidade();
 
         Lembrete lembrete = lembreteRepository.save(Lembrete.builder()
                 .titulo(request.getTitulo())
@@ -98,18 +93,13 @@ public class LembreteService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true)
-    })
+    @InvalidaCaches
     public LembreteResponse concluir(Long id) {
         Lembrete lembrete = findById(id);
         securityUtils.getTutorIdAutenticadoOuFalha();
         securityUtils.exigirTutorDono(lembrete.getPet().getTutor().getId(), "Este cuidado não pertence a um pet do tutor autenticado.");
 
-        Usuario tutorUsuario = usuarioRepository.findById(securityUtils.getUsuarioAutenticado().getUsuarioId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
+        Usuario tutorUsuario = usuarioAtual.entidade();
 
         String titulo = lembrete.getTitulo();
         String descricao = lembrete.getDescricao();
@@ -148,11 +138,7 @@ public class LembreteService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true)
-    })
+    @InvalidaCaches
     public LembreteResponse cancelar(Long id) {
         Lembrete lembrete = findById(id);
         int atualizados = lembreteRepository.cancelarSeAindaPendente(id);
@@ -164,11 +150,7 @@ public class LembreteService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true)
-    })
+    @InvalidaCaches
     public LembreteResponse atualizar(Long id, LembreteRequest request) {
         Lembrete lembrete = findById(id);
         if (lembrete.getStatus() != StatusLembrete.PENDENTE) {
@@ -186,11 +168,7 @@ public class LembreteService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_LEMBRETES, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = "pets", allEntries = true)
-    })
+    @InvalidaCaches
     public void deletar(Long id) {
         lembreteRepository.delete(findById(id));
     }

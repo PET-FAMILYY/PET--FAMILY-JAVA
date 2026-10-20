@@ -1,5 +1,6 @@
 package br.com.fiap.petfamily.service;
 
+import br.com.fiap.petfamily.config.InvalidaCaches;
 import br.com.fiap.petfamily.dto.request.AgendarConsultaRequest;
 import br.com.fiap.petfamily.dto.request.RealizarConsultaRequest;
 import br.com.fiap.petfamily.dto.response.ConsultaResponse;
@@ -15,10 +16,9 @@ import br.com.fiap.petfamily.repository.ConsultaRepository;
 import br.com.fiap.petfamily.repository.ConsultaSlotRepository;
 import br.com.fiap.petfamily.repository.UsuarioRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
+import br.com.fiap.petfamily.security.UsuarioAtual;
 import br.com.fiap.petfamily.security.UsuarioPrincipal;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,16 +40,12 @@ public class ConsultaService {
 
     private final ConsultaRepository consultaRepository;
     private final ConsultaSlotRepository consultaSlotRepository;
-    private final UsuarioRepository usuarioRepository;
     private final PetService petService;
     private final SecurityUtils securityUtils;
+    private final UsuarioAtual  usuarioAtual;
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = CACHE_PETS, allEntries = true)
-    })
+    @InvalidaCaches
     public ConsultaResponse agendar(AgendarConsultaRequest request) {
         securityUtils.getTutorIdAutenticadoOuFalha();
         Pet pet = petService.findById(request.getPetId());
@@ -94,15 +90,10 @@ public class ConsultaService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = CACHE_PETS, allEntries = true)
-    })
+    @InvalidaCaches
     public ConsultaResponse realizar(Long id, RealizarConsultaRequest request) {
         Consulta consulta = findById(id);
-        Usuario veterinario = usuarioRepository.findById(securityUtils.getUsuarioAutenticado().getUsuarioId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
+        Usuario veterinario = usuarioAtual.entidade();
         int atualizados = consultaRepository.realizarSeAgendada(
                 id, request.getObservacoes(), LocalDateTime.now(), veterinario);
         if (atualizados == 0) {
@@ -113,11 +104,7 @@ public class ConsultaService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CACHE_CONSULTAS, allEntries = true),
-            @CacheEvict(value = CACHE_DASHBOARD, allEntries = true),
-            @CacheEvict(value = CACHE_PETS, allEntries = true)
-    })
+    @InvalidaCaches
     public ConsultaResponse cancelar(Long id) {
         Consulta consulta = findById(id);
         securityUtils.exigirTutorDono(consulta.getPet().getTutor().getId(), "Esta consulta não pertence ao tutor autenticado.");

@@ -2,6 +2,7 @@ package br.com.fiap.petfamily.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -19,7 +20,7 @@ public class PetRequest {
     @Size(max = 100, message = "Raça deve ter no máximo 100 caracteres")
     private String raca;
 
-    @Positive(message = "Idade deve ser um valor positivo")
+    @PositiveOrZero(message = "Idade não pode ser negativa")
     private Integer idade;
 
     @Positive(message = "Peso deve ser um valor positivo")

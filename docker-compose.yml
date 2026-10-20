@@ -1,23 +1,32 @@
-# Banco PostgreSQL COMPARTILHADO (ambiente "prod"/homologação).
-#   docker compose up -d
-#   export SPRING_PROFILES_ACTIVE=prod  (use as variáveis do .env.example)
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: petfamily-postgres
     environment:
       POSTGRES_DB: petfamily
       POSTGRES_USER: ${DB_USER:-petfamily}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
-    ports:
-      - "5432:5432"
-    volumes:
-      - petfamily-pgdata:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    volumes: [petfamily-pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-petfamily} -d petfamily"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["9090:9090"]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,demo
+      DB_URL: jdbc:postgresql://postgres:5432/petfamily
+      DB_USER: ${DB_USER:-petfamily}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      SWAGGER_ENABLED: "true"
 
 volumes:
   petfamily-pgdata:

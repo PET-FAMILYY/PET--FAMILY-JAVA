@@ -4,12 +4,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,7 +18,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -27,181 +28,93 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex,
-                                                                HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error("Not Found")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), req);
     }
 
-    @ExceptionHandler(EmailJaCadastradoException.class)
-    public ResponseEntity<ErrorResponse> handleEmailJaCadastrado(EmailJaCadastradoException ex,
-                                                                 HttpServletRequest request) {
-        return conflito(ex.getMessage(), request);
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<ErrorResponse> handleRotaInexistente(Exception ex, HttpServletRequest req) {
+        return resposta(HttpStatus.NOT_FOUND, "Not Found", "Rota não encontrada: " + req.getRequestURI(), req);
     }
 
-    @ExceptionHandler(ConflitoOperacaoException.class)
-    public ResponseEntity<ErrorResponse> handleConflitoOperacao(ConflitoOperacaoException ex,
-                                                                HttpServletRequest request) {
-        return conflito(ex.getMessage(), request);
+    @ExceptionHandler({EmailJaCadastradoException.class, ConflitoOperacaoException.class})
+    public ResponseEntity<ErrorResponse> handleConflito(RuntimeException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.CONFLICT, "Conflito", ex.getMessage(), req);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
-                                                                      HttpServletRequest request) {
-        return conflito("Operação viola uma restrição de integridade dos dados (registro duplicado ou em uso).", request);
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.CONFLICT, "Conflito",
+                "Operação viola uma restrição de integridade dos dados (registro duplicado ou em uso).", req);
     }
 
     @ExceptionHandler(OperacaoInvalidaException.class)
-    public ResponseEntity<ErrorResponse> handleOperacaoInvalida(OperacaoInvalidaException ex,
-                                                                HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Operação Inválida")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    public ResponseEntity<ErrorResponse> handleOperacaoInvalida(OperacaoInvalidaException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.BAD_REQUEST, "Operação Inválida", ex.getMessage(), req);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex,
-                                                              HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error("Não autenticado")
-                .message("E-mail ou senha inválidos.")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.UNAUTHORIZED, "Não autenticado", "E-mail ou senha inválidos.", req);
+    }
+
+    @ExceptionHandler(TentativasExcedidasException.class)
+    public ResponseEntity<ErrorResponse> handleTentativasExcedidas(TentativasExcedidasException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas", ex.getMessage(), req);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex,
-                                                            HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.FORBIDDEN.value())
-                .error("Acesso negado")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.FORBIDDEN, "Acesso negado", ex.getMessage(), req);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
-                                                                  HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.METHOD_NOT_ALLOWED.value())
-                .error("Método Não Permitido")
-                .message("Método " + ex.getMethod() + " não é suportado para " + request.getRequestURI() + ".")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(error);
+    public ResponseEntity<ErrorResponse> handleMetodoNaoSuportado(HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.METHOD_NOT_ALLOWED, "Método Não Permitido",
+                "Método " + ex.getMethod() + " não é suportado para " + req.getRequestURI() + ".", req);
     }
 
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNoHandlerFound(NoHandlerFoundException ex,
-                                                              HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error("Not Found")
-                .message("Rota não encontrada: " + request.getRequestURI())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-    }
-
-    // JSON malformado, data/horário em formato inválido, enum desconhecido...
-    // Antes caía no handler genérico e virava 500; o erro é do cliente => 400.
+    // JSON malformado, data/horário inválido, enum desconhecido: erro do cliente => 400
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleMensagemIlegivel(HttpMessageNotReadableException ex,
-                                                                HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Bad Request")
-                .message("Corpo da requisição inválido ou malformado (verifique o JSON e os formatos de data/hora).")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    public ResponseEntity<ErrorResponse> handleMensagemIlegivel(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.BAD_REQUEST, "Bad Request",
+                "Corpo da requisição inválido ou malformado (verifique o JSON e os formatos de data/hora).", req);
     }
 
-    // Spring 6.1+: rota inexistente lança NoResourceFoundException (e não
-    // NoHandlerFoundException). Sem este handler, virava 500.
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ErrorResponse> handleRecursoNaoEncontrado(NoResourceFoundException ex,
-                                                                    HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error("Not Found")
-                .message("Rota não encontrada: " + request.getRequestURI())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-    }
-
-    private ResponseEntity<ErrorResponse> conflito(String message, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error("Conflito")
-                .message(message)
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex,
-                                                          HttpServletRequest request) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.joining("; "));
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Validation Error")
-                .message(message)
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handleOrdenacaoInvalida(PropertyReferenceException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.BAD_REQUEST, "Bad Request",
+                "Campo de ordenação inválido: " + ex.getPropertyName(), req);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
-                                                            HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Bad Request")
-                .message("Parâmetro inválido: " + ex.getName())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    public ResponseEntity<ErrorResponse> handleTipoInvalido(MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        return resposta(HttpStatus.BAD_REQUEST, "Bad Request", "Parâmetro inválido: " + ex.getName(), req);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
+        Map<String, String> campos = new LinkedHashMap<>();
+        ex.getBindingResult().getFieldErrors()
+                .forEach(fe -> campos.putIfAbsent(fe.getField(), fe.getDefaultMessage()));
+        String resumo = campos.values().stream().collect(Collectors.joining("; "));
+
+        ErrorResponse corpo = ErrorResponse.of(HttpStatus.BAD_REQUEST, "Validation Error", resumo, req.getRequestURI());
+        corpo.setCampos(campos);
+        return ResponseEntity.badRequest().body(corpo);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest request) {
-        log.error("Erro não tratado em {}", request.getRequestURI(), ex);
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .error("Internal Server Error")
-                .message("Ocorreu um erro inesperado. Tente novamente mais tarde.")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest req) {
+        log.error("Erro não tratado em {}", req.getRequestURI(), ex);
+        return resposta(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                "Ocorreu um erro inesperado. Tente novamente mais tarde.", req);
+    }
+
+    /** Único ponto que monta a resposta de erro — evita repetir o builder em cada handler. */
+    private ResponseEntity<ErrorResponse> resposta(HttpStatus status, String titulo, String mensagem,
+                                                   HttpServletRequest req) {
+        return ResponseEntity.status(status)
+                .body(ErrorResponse.of(status, titulo, mensagem, req.getRequestURI()));
     }
 }

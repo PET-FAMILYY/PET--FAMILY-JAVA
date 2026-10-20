@@ -1,5 +1,6 @@
 package br.com.fiap.petfamily.service;
 
+import br.com.fiap.petfamily.config.InvalidaCaches;
 import br.com.fiap.petfamily.dto.request.PetRequest;
 import br.com.fiap.petfamily.dto.response.PetResponse;
 import br.com.fiap.petfamily.entity.Lembrete.StatusLembrete;
@@ -11,9 +12,7 @@ import br.com.fiap.petfamily.repository.LembreteRepository;
 import br.com.fiap.petfamily.repository.PetRepository;
 import br.com.fiap.petfamily.security.SecurityUtils;
 import br.com.fiap.petfamily.security.UsuarioPrincipal;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,10 +42,7 @@ public class PetService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "pets", allEntries = true),
-            @CacheEvict(value = "dashboard", allEntries = true)
-    })
+    @InvalidaCaches
     public PetResponse criar(PetRequest request) {
         Long tutorId = securityUtils.getTutorIdAutenticadoOuFalha();
         Tutor tutor = tutorService.findById(tutorId);
@@ -66,12 +62,17 @@ public class PetService {
     public Page<PetResponse> listar(Long tutorId, String especie, Pageable pageable) {
         UsuarioPrincipal principal = securityUtils.getUsuarioAutenticado();
         Long tutorFiltro = principal.isTutor() ? principal.getTutorId() : tutorId;
+        boolean filtrarEspecie = especie != null && !especie.isBlank();
 
+        if (tutorFiltro != null && filtrarEspecie) {
+            return petRepository.findByTutorIdAndEspecieIgnoreCase(tutorFiltro, especie.trim(), pageable)
+                    .map(this::toResponse);
+        }
         if (tutorFiltro != null) {
             return petRepository.findByTutorId(tutorFiltro, pageable).map(this::toResponse);
         }
-        if (especie != null && !especie.isBlank()) {
-            return petRepository.findByEspecieIgnoreCase(especie, pageable).map(this::toResponse);
+        if (filtrarEspecie) {
+            return petRepository.findByEspecieIgnoreCase(especie.trim(), pageable).map(this::toResponse);
         }
         return petRepository.findAll(pageable).map(this::toResponse);
     }
@@ -89,10 +90,7 @@ public class PetService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "pets", allEntries = true),
-            @CacheEvict(value = "dashboard", allEntries = true)
-    })
+    @InvalidaCaches
     public PetResponse atualizar(Long id, PetRequest request) {
         Pet pet = findById(id);
         securityUtils.exigirTutorDono(pet.getTutor().getId(), "Este pet não pertence ao tutor autenticado.");
@@ -106,10 +104,7 @@ public class PetService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "pets", allEntries = true),
-            @CacheEvict(value = "dashboard", allEntries = true)
-    })
+    @InvalidaCaches
     public void deletar(Long id) {
         Pet pet = findById(id);
         securityUtils.exigirTutorDono(pet.getTutor().getId(), "Este pet não pertence ao tutor autenticado.");

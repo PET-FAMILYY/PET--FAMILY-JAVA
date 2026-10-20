@@ -21,6 +21,13 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret,
                        @Value("${jwt.expiration-ms}") long expirationMs) {
+
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException(
+                    "jwt.secret ausente ou fraco: defina JWT_SECRET com no mínimo 32 bytes "
+                            + "(ex.: openssl rand -base64 48).");
+        }
+
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

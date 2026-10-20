@@ -1,0 +1,29 @@
+databases:
+  - name: petfamily-db
+    databaseName: petfamily
+    user: petfamily
+
+services:
+  - type: web
+    name: petfamily-api
+    runtime: docker
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod,demo
+      - key: DB_HOST
+        fromDatabase: { name: petfamily-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: petfamily-db, property: port }
+      - key: DB_NAME
+        fromDatabase: { name: petfamily-db, property: database }
+      - key: DB_USER
+        fromDatabase: { name: petfamily-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: petfamily-db, property: password }
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: SWAGGER_ENABLED
+        value: "true"

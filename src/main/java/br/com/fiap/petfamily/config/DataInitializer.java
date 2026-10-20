@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Configuration
-@Profile("dev")
+@Profile({"dev", "demo"})
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer {
