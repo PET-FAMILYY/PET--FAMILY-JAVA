@@ -41,4 +41,7 @@ public interface LembreteRepository extends JpaRepository<Lembrete, Long> {
     @Query("UPDATE Lembrete l SET l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.CANCELADO " +
             "WHERE l.id = :id AND l.status = br.com.fiap.petfamily.entity.Lembrete$StatusLembrete.PENDENTE")
     int cancelarSeAindaPendente(@Param("id") Long id);
+
+    List<Lembrete> findByPetId(Long petId);
 }
+

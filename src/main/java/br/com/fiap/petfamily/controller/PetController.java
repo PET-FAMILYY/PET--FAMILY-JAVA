@@ -1,7 +1,10 @@
 package br.com.fiap.petfamily.controller;
 
 import br.com.fiap.petfamily.dto.request.PetRequest;
+import br.com.fiap.petfamily.dto.response.EventoSaudeResponse;
 import br.com.fiap.petfamily.dto.response.PetResponse;
+import br.com.fiap.petfamily.service.LembreteService;
+import br.com.fiap.petfamily.service.LinhaDoTempoService;
 import br.com.fiap.petfamily.service.PetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -17,6 +20,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/pets")
 @RequiredArgsConstructor
@@ -24,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 public class PetController {
 
     private final PetService petService;
+    private final LinhaDoTempoService linhaDoTempoService;
 
     @PostMapping
     @PreAuthorize("hasRole('TUTOR')")
@@ -65,5 +71,11 @@ public class PetController {
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         petService.deletar(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/linha-do-tempo")
+    @Operation(summary = "Histórico de saúde unificado do pet: consultas, cuidados e conversas com a IA")
+    public ResponseEntity<List<EventoSaudeResponse>> linhaDoTempo(@PathVariable Long id) {
+        return ResponseEntity.ok(linhaDoTempoService.montar(id));
     }
 }

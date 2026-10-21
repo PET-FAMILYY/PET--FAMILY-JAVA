@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
 
@@ -42,4 +43,6 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
     @Query("UPDATE Consulta c SET c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.CANCELADA " +
             "WHERE c.id = :id AND c.status = br.com.fiap.petfamily.entity.Consulta$StatusConsulta.AGENDADA")
     int cancelarSeAgendada(@Param("id") Long id);
+
+    List<Consulta> findByPetId(Long petId);
 }

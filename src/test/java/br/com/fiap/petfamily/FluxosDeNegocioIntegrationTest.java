@@ -459,6 +459,26 @@ class FluxosDeNegocioIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void linhaDoTempoReunePetEBloqueiaOutroTutor() throws Exception {
+        mockMvc.perform(post("/consultas/agendar")
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                            {"petId":%d,"tipoConsulta":"Checkup","data":"2030-10-01","horario":"09:00"}"""
+                                .formatted(petIdDoTutorA)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/pets/" + petIdDoTutorA + "/linha-do-tempo")
+                        .header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tipo").value("CONSULTA"));
+
+        mockMvc.perform(get("/pets/" + petIdDoTutorA + "/linha-do-tempo")
+                        .header("Authorization", "Bearer " + tutorBToken))
+                .andExpect(status().isForbidden());
+    }
+
     private JsonNode campo(MvcResult result, String nomeDoCampo) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get(nomeDoCampo);
     }
