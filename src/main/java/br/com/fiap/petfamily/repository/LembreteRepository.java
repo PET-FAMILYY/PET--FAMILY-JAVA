@@ -43,5 +43,7 @@ public interface LembreteRepository extends JpaRepository<Lembrete, Long> {
     int cancelarSeAindaPendente(@Param("id") Long id);
 
     List<Lembrete> findByPetId(Long petId);
+
+    List<Lembrete> findByStatusAndDataLembreteBetween(StatusLembrete status, LocalDate de, LocalDate ate);
 }
 
