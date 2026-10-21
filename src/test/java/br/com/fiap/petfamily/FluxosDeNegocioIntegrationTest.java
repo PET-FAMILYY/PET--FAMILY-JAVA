@@ -440,6 +440,25 @@ class FluxosDeNegocioIntegrationTest {
                 .andExpect(status().isTooManyRequests());
     }
 
+    @Test
+    void tokenContinuaValidoDepoisDeTrocarOEmail() throws Exception {
+        MvcResult login = mockMvc.perform(post("/auth/login").contentType("application/json")
+                        .content("""
+                            {"email":"tutora@teste.com","senha":"senha123"}"""))
+                .andExpect(status().isOk()).andReturn();
+        long tutorId = campo(login, "tutorId").asLong();
+
+        mockMvc.perform(put("/tutores/" + tutorId)
+                        .header("Authorization", "Bearer " + tutorAToken)
+                        .contentType("application/json")
+                        .content("""
+                            {"nome":"Tutor A","email":"outro.email@teste.com"}"""))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + tutorAToken))
+                .andExpect(status().isOk());
+    }
+
     private JsonNode campo(MvcResult result, String nomeDoCampo) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get(nomeDoCampo);
     }

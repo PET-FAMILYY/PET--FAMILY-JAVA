@@ -47,18 +47,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (jwtService.isTokenValido(token)) {
                 try {
-                    String email = jwtService.extrairEmail(token);
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-
-                    var authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    Long usuarioId = jwtService.extrairUsuarioId(token);
+                    if (usuarioId != null) {
+                        UserDetails userDetails = userDetailsService.loadByUsuarioId(usuarioId);
+                        var authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 } catch (UsernameNotFoundException ex) {
-                    // Token assinado e não expirado, mas o usuário não existe mais
-                    // (conta excluída ou e-mail alterado). Trata como NÃO autenticado
-                    // -> o entry point responde 401 em JSON, em vez de estourar 500.
-                    SecurityContextHolder.clearContext();
+                    SecurityContextHolder.clearContext();   // conta excluída => 401
                 }
             }
         }

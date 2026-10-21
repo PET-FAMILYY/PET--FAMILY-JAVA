@@ -71,6 +71,11 @@ public class JwtService {
         }
     }
 
+    public Long extrairUsuarioId(String token) {
+        Object valor = parseClaims(token).get("usuarioId");
+        return valor instanceof Number n ? n.longValue() : null;
+    }
+
     public String extrairEmail(String token) {
         return parseClaims(token).getSubject();
     }
