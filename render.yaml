@@ -2,11 +2,14 @@ databases:
   - name: petfamily-db
     databaseName: petfamily
     user: petfamily
+    plan: free
+    ipAllowList: []
 
 services:
   - type: web
     name: petfamily-api
     runtime: docker
+    plan: free
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
