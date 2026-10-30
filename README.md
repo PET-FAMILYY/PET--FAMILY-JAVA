@@ -17,6 +17,28 @@
 
 ---
 
+## Sumário
+
+1. [Problema](#problema)
+2. [Solução](#solução)
+3. [Testando: API rodando no banco Oracle](#testando-api-rodando-no-banco-oracle)
+4. [Tecnologias](#tecnologias)
+5. [Entidades e Relacionamentos](#entidades-e-relacionamentos)
+6. [Segurança (Spring Security + JWT)](#segurança-spring-security--jwt)
+7. [Flyway — versionamento de banco](#flyway--versionamento-de-banco)
+8. [Fluxos de negócio (além do CRUD)](#fluxos-de-negócio-além-do-crud)
+9. [Endpoints](#endpoints)
+10. [Como Rodar](#como-rodar)
+11. [Deploy online (Render)](#deploy-online-render)
+12. [Contas de demonstração (perfil `dev`)](#contas-de-demonstração-perfil-dev)
+13. [Exemplos de Payload](#exemplos-de-payload)
+14. [Correspondência requisitos × implementação](#correspondência-requisitos--implementação)
+15. [Changelog técnico — o que mudamos no backend Java (entrega 03)](#changelog-técnico--o-que-mudamos-no-backend-java-entrega-03)
+16. [Integrantes](#integrantes)
+17. [Estrutura do Projeto](#estrutura-do-projeto)
+
+---
+
 ## Problema
 
 Tutores de pets enfrentam dificuldades para manter a continuidade no cuidado veterinário: esquecem vacinas, perdem histórico de consultas, não possuem lembretes preventivos e não têm acesso fácil a orientações de saúde animal. O resultado é uma ruptura no cuidado que compromete o bem-estar dos animais.
@@ -39,6 +61,187 @@ A Pet Family API centraliza e gerencia todas as informações relacionadas à sa
 
 
 ---
+
+##  Testando: API rodando no banco Oracle
+
+Esta seção explica como subir a API conectada ao **Oracle** (perfil `oracle`) e testar as **procedures e funções da package `PKG_PETFAMILY_S4`** chamadas pela aplicação. O Render e os testes automatizados continuam usando PostgreSQL/H2; o perfil `oracle` só é ativado quando você pede.
+
+> No perfil `oracle` o **Flyway fica desligado**: o schema Oracle (tabelas, package e triggers) é mantido pelos scripts da pasta `sql_oracle` (`00_instalar.sql` e `V2__ajustes_compatibilidade_java.sql`). O Java não cria nem altera tabelas nesse perfil.
+
+### 1. Pré-requisitos
+
+- Schema Oracle instalado no usuário que a API vai usar (`00_instalar.sql` e depois o `V2__ajustes_compatibilidade_java.sql`).
+- Um usuário **veterinário** no banco. Duas opções: subir com o perfil `demo` em um banco com a tabela `tutores` vazia (cria `veterinario@petfamily.com`), ou rodar o `08_usuario_demo_opcional.sql` (cria `vet.demo@petfamily.local`). Senha de ambos: `senha123`.
+- Acesso de rede ao Oracle (no caso da FIAP, estar na rede da faculdade ou na VPN).
+- Docker **ou** Java 17+ e Maven 3.8+.
+
+### 2. Arquivo `.env.oracle` (exemplo)
+
+Crie na raiz do projeto. **Nunca faça commit desse arquivo** (adicione `.env.*` e `!.env.example` ao `.gitignore`).
+
+```env
+SPRING_PROFILES_ACTIVE=oracle,demo
+DB_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:orcl
+DB_USER=rmXXXXXX
+DB_PASSWORD=sua-senha-oracle
+JWT_SECRET=uma-chave-aleatoria-com-no-minimo-32-caracteres
+CORS_ALLOWED_ORIGINS=*
+```
+
+| Variável | Para que serve |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `oracle` conecta no Oracle. `demo` carrega dados de demonstração (só se `tutores` estiver vazia). |
+| `DB_URL` | URL JDBC. Com **SID**: `jdbc:oracle:thin:@HOST:1521:SID`. Com **service name**: `jdbc:oracle:thin:@//HOST:1521/SERVICE_NAME`. |
+| `DB_USER` / `DB_PASSWORD` | Usuário e senha do Oracle. Se a senha tiver `$`, escreva `$$` ao usar Docker Compose. |
+| `JWT_SECRET` | Segredo do token (mínimo 32 caracteres). |
+| `EXPORT_DIR` *(opcional)* | Pasta onde o Java grava os JSON exportados (padrão `json`, relativa à pasta onde a API roda). |
+
+### 3. Subir a API
+
+**Opção A: Docker Compose.** Crie a pasta `json` (`mkdir json`) e o arquivo `docker-compose.oracle.yml` na raiz:
+
+```yaml
+services:
+  api:
+    build: .
+    ports: ["9090:9090"]
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle,demo
+      DB_URL: ${DB_URL:?defina DB_URL no .env.oracle}
+      DB_USER: ${DB_USER:?defina DB_USER no .env.oracle}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env.oracle}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env.oracle}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      SWAGGER_ENABLED: "true"
+      EXPORT_DIR: /app/json
+    volumes:
+      - ./json:/app/json
+```
+
+```bash
+docker compose -f docker-compose.oracle.yml --env-file .env.oracle up --build --remove-orphans
+```
+
+> Variáveis definidas no terminal têm prioridade sobre o `--env-file`. Se aparecer `jdbc:postgresql` ou usuário errado, rode `unset DB_URL DB_USER DB_PASSWORD` antes.
+
+**Opção B: Maven** (carregando o `.env.oracle` no terminal).
+
+Git Bash / Linux / macOS:
+```bash
+set -a; source .env.oracle; set +a
+mvn spring-boot:run
+```
+
+PowerShell:
+```powershell
+Get-Content .env.oracle | ForEach-Object {
+  if ($_ -match '^\s*([^#=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), 'Process') }
+}
+mvn spring-boot:run
+```
+
+Sinais de que deu certo no log: `HikariPool-1 - Added connection oracle.jdbc.driver.T4CConnection` e `Started PetFamilyApplication`. A API fica em **http://localhost:9090** e o Swagger em **http://localhost:9090/swagger-ui.html**.
+
+### 4. Requisições de teste
+
+Os endpoints `/oracle/**` existem **somente no perfil `oracle`** e exigem o perfil **VETERINARIO**. Os exemplos abaixo usam `curl` (Git Bash). No Swagger, faça login, clique em **Authorize** e cole o token.
+
+**4.1. Login do veterinário e token**
+
+```bash
+curl -s -X POST http://localhost:9090/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"veterinario@petfamily.com","senha":"senha123"}'
+```
+
+Use `vet.demo@petfamily.local` se o veterinário veio do `08_usuario_demo_opcional.sql`. Copie o campo `token` da resposta:
+
+```bash
+TOKEN=cole_o_token_aqui
+```
+
+**4.2. `pr_cadastrar_tutor`** → `201` com `{"id": N}`
+
+```bash
+curl -s -X POST http://localhost:9090/oracle/tutores \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"nome":"Tutor Teste","email":"tutor.teste@petfamily.local","telefone":"11999990000"}'
+```
+
+**4.3. `pr_cadastrar_pet`** → `201` com `{"id": N}` (use o `id` do tutor)
+
+```bash
+curl -s -X POST http://localhost:9090/oracle/pets \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"tutorId":TUTOR_ID,"nome":"Rex","especie":"Cachorro"}'
+```
+
+**4.4. `pr_agendar_consulta`** → `201` com `{"id": N}` (use o `id` do pet; o `horario` é **texto** `"HH:mm"`)
+
+```bash
+curl -s -X POST http://localhost:9090/oracle/consultas \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"petId":PET_ID,"data":"2026-12-31","horario":"11:13","tipo":"ROTINA"}'
+```
+
+**4.5. Conflito de horário:** repita exatamente a requisição 4.4 → `409` ("Horario ja esta reservado.")
+
+**4.6. `pr_atualizar_status`** → `204` (valores: `AGENDADA`, `REALIZADA`, `CANCELADA`)
+
+```bash
+curl -s -X PATCH http://localhost:9090/oracle/consultas/CONSULTA_ID/status \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"status":"REALIZADA"}'
+```
+
+**4.7. Funções `fn_contar_pets` e `fn_status_valido`**
+
+```bash
+curl -s http://localhost:9090/oracle/tutores/TUTOR_ID/quantidade-pets -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:9090/oracle/status-valido?status=REALIZADA" -H "Authorization: Bearer $TOKEN"
+```
+
+**4.8. `pr_exportar_json`**: gera `json/tutores.json`, `json/consultas.json` e `json/interacoes_ia.json`
+
+```bash
+curl -s -X POST http://localhost:9090/oracle/exportar -H "Authorization: Bearer $TOKEN"
+```
+
+Para só visualizar, sem gravar arquivo: `GET /oracle/exportar/TUTORES` (também `CONSULTAS` e `INTERACOES_IA`).
+
+### 5. Resultados esperados
+
+| Teste | Resposta esperada |
+|---|---|
+| Cadastro de tutor, pet ou consulta | `201` + `{"id": N}` |
+| Agendar o mesmo dia e horário duas vezes | `409 Conflito` |
+| E-mail de tutor repetido | `409 Conflito` |
+| `tutorId` ou `petId` inexistente | `404 Not Found` |
+| Status inválido (ex.: `XYZ`) | `400 Operação Inválida` |
+| `horario` fora do formato `"HH:mm"` | `400 Bad Request` |
+| Usar token de TUTOR nos endpoints `/oracle/**` | `403 Acesso negado` |
+| Sem token | `401 Não autenticado` |
+
+Confira no Oracle o efeito das procedures:
+
+```sql
+SELECT id, data, TO_CHAR(horario,'YYYY-MM-DD HH24:MI:SS') horario, status
+  FROM consultas ORDER BY id DESC FETCH FIRST 3 ROWS ONLY;
+SELECT * FROM auditoria_consultas_s4 ORDER BY id DESC;   -- INSERT/UPDATE registrados pelo trigger
+```
+
+### 6. Problemas comuns
+
+| Sintoma | Causa provável |
+|---|---|
+| `Driver oracle.jdbc.OracleDriver claims to not accept jdbcUrl, jdbc:postgresql...` | `DB_URL` com a URL do PostgreSQL (variável antiga no terminal ou `.env.oracle` errado). |
+| `ORA-01017: invalid username/password` | Usuário ou senha errados (ou `$` na senha sem escapar no Docker Compose). Teste a mesma senha no SQL Developer. |
+| `ORA-12505` / `ORA-12514` | SID e service name trocados na `DB_URL`. |
+| Timeout na conexão | Sem rede/VPN até o Oracle. |
+| `MalformedInputException` no build | Arquivo `.properties` salvo fora de UTF-8. |
+| Login do veterinário retorna 401 | `DataInitializer` não rodou (a tabela `tutores` já tinha dados). Use o `08_usuario_demo_opcional.sql`. |
+| `404` em `/oracle/...` | Perfil `oracle` não está ativo. |
+| `ORA-20xxx` no log | Erro de regra da package, convertido em 404 (`20004`), 409 (`20006`, `20009`) ou 400 (demais). |
 
 ## Tecnologias
 
