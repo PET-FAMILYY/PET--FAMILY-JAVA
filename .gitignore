@@ -17,3 +17,5 @@ target/
 
 data/
 .env
+.env.oracle
+.env.postgres

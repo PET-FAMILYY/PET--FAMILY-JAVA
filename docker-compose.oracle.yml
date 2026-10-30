@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports: ["9090:9090"]
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle,demo
+      DB_URL: ${DB_URL:?defina DB_URL no .env.oracle}
+      DB_USER: ${DB_USER:?defina DB_USER no .env.oracle}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env.oracle}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env.oracle}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      SWAGGER_ENABLED: "true"
+      EXPORT_DIR: /app/json
+    volumes:
+      - ./json:/app/json
